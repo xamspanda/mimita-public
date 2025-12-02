@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 echo.
 echo === [STEP 1] Setting up paths ===
-set "GPP=C:\important\mingw\winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r2\mingw64\bin\g++.exe"
+set "GPP=C:\important\winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r4\mingw64\bin\g++.exe"
 set "GLFW_INC=C:\important\glfw-3.4.bin.WIN64\include"
 set "GLFW_LIB=C:\important\glfw-3.4.bin.WIN64\lib-mingw-w64"
 set "EXT_INC=external\include"
