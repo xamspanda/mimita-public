@@ -347,22 +347,24 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     float rad = 0.5f * p.hitboxSize.x; // approximate capsule radius
 
     glm::vec3 half = p.hitboxSize * 0.5f;
-    SweepResult result = sweepBoxMesh(world, start, end, half);
+
+    glm::vec3 centerStart = p.pos + glm::vec3(0, half.y, 0);
+    glm::vec3 centerEnd   = centerStart + p.vel * dt;
+
+    // USE CENTER, not FEET
+    SweepResult result = sweepBoxMesh(world, centerStart, centerEnd, half);
 
     if (result.hit)
     {
-        // Move to point of contact
-        p.pos = start + (end - start) * result.t;
+        glm::vec3 newCenter = centerStart + (centerEnd - centerStart) * result.t;
 
-        // Slide velocity along the surface
         glm::vec3 v = p.vel;
         float into = glm::dot(v, result.normal);
-        if (into < 0)
-            v -= result.normal * into;
-
+        if (into < 0) v -= result.normal * into;
         p.vel = v;
 
-        // Ground check = slope angle < threshold
+        p.pos = newCenter - glm::vec3(0, half.y, 0);
+
         if (result.normal.y > 0.7f)
         {
             p.onGround = true;
@@ -371,9 +373,9 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     }
     else
     {
-        p.pos = end;
+        glm::vec3 newCenter = centerEnd;
+        p.pos = newCenter - glm::vec3(0, half.y, 0);
     }
-
 
     /*
     todo nov 6 2025
