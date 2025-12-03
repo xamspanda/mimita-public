@@ -1,5 +1,8 @@
 // C:\important\go away v5\s\mimita-v5\src\physics\physics.cpp
 
+// dec 3 2025 todo 
+// maybe split this into smaller files so this isnt just a massive 500 line file but whatever 
+
 #define NOMINMAX
 #include "physics/config.h"
 #include "physics.h"
@@ -45,12 +48,70 @@ struct Ray {
     glm::vec3 dir;
 };
 
+// this goes above updatephysics but also is industry standard triangle colliisons ehh idk
+// Möller–Trumbore ray-triangle intersection
+// THIS MUST GO ABOVE TRIANGLENORMALAT
+static bool raycastTriangle(const Ray& r,
+                            const glm::vec3& v0,
+                            const glm::vec3& v1,
+                            const glm::vec3& v2,
+                            float& tOut)
+{
+    const float EPS = 0.000001f;
+    glm::vec3 e1 = v1 - v0;
+    glm::vec3 e2 = v2 - v0;
+
+    glm::vec3 p = glm::cross(r.dir, e2);
+    float det = glm::dot(e1, p);
+    if (fabs(det) < EPS) return false;
+
+    float invDet = 1.0f / det;
+    glm::vec3 t = r.origin - v0;
+    float u = glm::dot(t, p) * invDet;
+    if (u < 0.0f || u > 1.0f) return false;
+
+    glm::vec3 q = glm::cross(t, e1);
+    float v = glm::dot(r.dir, q) * invDet;
+    if (v < 0.0f || u + v > 1.0f) return false;
+
+    float dist = glm::dot(e2, q) * invDet;
+    if (dist > EPS)
+    {
+        tOut = dist;
+        return true;
+    }
+
+    return false;
+}
+
 // dec 3 2025 todo need make this better , this for collisions 
 static glm::vec3 findTriangleNormalAt(const Mesh& mesh, float x, float z)
 {
-    // TEMP: return straight upward normal
-    // TODO: implement real triangle lookup using raycast
-    return glm::vec3(0, 1, 0);
+    Ray r;
+    r.origin = glm::vec3(x, 9999.0f, z);
+    r.dir    = glm::vec3(0, -1, 0);
+
+    float closest = FLT_MAX;
+    glm::vec3 bestNormal = glm::vec3(0,1,0);
+
+    for (size_t i = 0; i < mesh.verts.size(); i += 3)
+    {
+        const glm::vec3& v0 = mesh.verts[i+0].pos;
+        const glm::vec3& v1 = mesh.verts[i+1].pos;
+        const glm::vec3& v2 = mesh.verts[i+2].pos;
+
+        float t;
+        if (raycastTriangle(r, v0, v1, v2, t))
+        {
+            if (t < closest)
+            {
+                closest = t;
+                bestNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            }
+        }
+    }
+
+    return bestNormal;
 }
 
 // dec 2 2025 dont hardcode ground friction here put it in a physics config or smth
@@ -85,40 +146,6 @@ float intersectPlane(const glm::vec3& p0, const glm::vec3& n, const Ray& r) {
     return (t >= 0.0f ? t : -1.0f);
 }
 
-// this goes above updatephysics but also is industry standard triangle colliisons ehh idk
-// Möller–Trumbore ray-triangle intersection
-static bool raycastTriangle(const Ray& r,
-                            const glm::vec3& v0,
-                            const glm::vec3& v1,
-                            const glm::vec3& v2,
-                            float& tOut)
-{
-    const float EPS = 0.000001f;
-    glm::vec3 e1 = v1 - v0;
-    glm::vec3 e2 = v2 - v0;
-
-    glm::vec3 p = glm::cross(r.dir, e2);
-    float det = glm::dot(e1, p);
-    if (fabs(det) < EPS) return false;
-
-    float invDet = 1.0f / det;
-    glm::vec3 t = r.origin - v0;
-    float u = glm::dot(t, p) * invDet;
-    if (u < 0.0f || u > 1.0f) return false;
-
-    glm::vec3 q = glm::cross(t, e1);
-    float v = glm::dot(r.dir, q) * invDet;
-    if (v < 0.0f || u + v > 1.0f) return false;
-
-    float dist = glm::dot(e2, q) * invDet;
-    if (dist > EPS)
-    {
-        tOut = dist;
-        return true;
-    }
-
-    return false;
-}
 
 // dec 2 2025 todo stop hardcoding 17 difrent rays in 8 difrnet files
 static float raycastMeshDown(const Mesh& mesh, const glm::vec3& origin)
@@ -169,6 +196,98 @@ static void applyAirStrafe(Player& p, const glm::vec3& wishDir, float dt)
     p.vel += wishDir * accel;
 }
 
+// dec 3 2025 todo sweep to make it good i think 
+struct SweepResult {
+    bool hit;
+    float t;            // fraction of movement (0..1)
+    glm::vec3 hitPoint;
+    glm::vec3 normal;
+};
+
+// Sweep a moving point against a triangle
+static SweepResult sweepPointTriangle(
+    const glm::vec3& start,
+    const glm::vec3& end,
+    const glm::vec3& v0,
+    const glm::vec3& v1,
+    const glm::vec3& v2)
+{
+    SweepResult out;
+    out.hit = false;
+    out.t = 1.0f;
+
+    glm::vec3 dir = end - start;
+
+    // Backface cull? No, we want both sides for ground
+    glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+    float denom = glm::dot(n, dir);
+    if (fabs(denom) < 1e-6f) return out; // no intersection
+
+    float t = glm::dot(v0 - start, n) / denom;
+    if (t < 0.0f || t > 1.0f) return out;
+
+    glm::vec3 p = start + dir * t;
+
+    // Barycentric test
+    glm::vec3 c;
+
+    glm::vec3 edge0 = v1 - v0;
+    glm::vec3 vp0 = p - v0;
+    c = glm::cross(edge0, vp0);
+    if (glm::dot(n, c) < 0) return out;
+
+    glm::vec3 edge1 = v2 - v1;
+    glm::vec3 vp1 = p - v1;
+    c = glm::cross(edge1, vp1);
+    if (glm::dot(n, c) < 0) return out;
+
+    glm::vec3 edge2 = v0 - v2;
+    glm::vec3 vp2 = p - v2;
+    c = glm::cross(edge2, vp2);
+    if (glm::dot(n, c) < 0) return out;
+
+    out.hit = true;
+    out.t = t;
+    out.hitPoint = p;
+    out.normal = n;
+    return out;
+}
+
+// dec 3 2025 more sweeping todo 
+static SweepResult sweepCapsuleMesh(
+    const Mesh& mesh,
+    const glm::vec3& start,
+    const glm::vec3& end,
+    float radius)
+{
+    SweepResult best;
+    best.hit = false;
+    best.t = 1.0f;
+
+    for (size_t i = 0; i < mesh.verts.size(); i += 3)
+    {
+        glm::vec3 v0 = mesh.verts[i+0].pos;
+        glm::vec3 v1 = mesh.verts[i+1].pos;
+        glm::vec3 v2 = mesh.verts[i+2].pos;
+
+        // Inflate triangle by capsule radius (move point outward)
+        glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+        /**
+         * dec 3 2025 todo dont have this for now idk what it is         
+        v0 += n * radius;
+        v1 += n * radius;
+        v2 += n * radius;
+
+         */
+
+        SweepResult hit = sweepPointTriangle(start, end, v0, v1, v2);
+        if (hit.hit && hit.t < best.t)
+            best = hit;
+    }
+
+    return best;
+}
+
 void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const Camera& cam) {
     // derive camera-relative forward/right, ignoring vertical pitch
     glm::vec3 forward = glm::normalize(glm::vec3(cam.front.x, 0, cam.front.z));
@@ -177,6 +296,8 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     /*
     this is how characters move in the entire game
     for now nov 6 2025 todo
+    dec 3 2025 todo maybe this goes into another file like player constants edit?
+    walkspeed and hp and jump height and gravity and game speed etc
     */
     glm::vec3 dir(0.0f);
     if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) dir += forward;
@@ -208,7 +329,42 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     }
 
     // apply velocity
-    p.pos += p.vel * dt;
+    // p.pos += p.vel * dt;
+
+    // apply velocity BETTER with SWEEPING dec 3 2025 todo
+
+    glm::vec3 start = p.pos;
+    glm::vec3 end = p.pos + p.vel * dt;
+    // DONT DO CAPSULE WE'RE DOING a box. dec 3 2025 
+    float rad = 0.5f * p.hitboxSize.x; // approximate capsule radius
+
+    SweepResult result = sweepCapsuleMesh(world, start, end, rad);
+
+    if (result.hit)
+    {
+        // Move to point of contact
+        p.pos = start + (end - start) * result.t;
+
+        // Slide velocity along the surface
+        glm::vec3 v = p.vel;
+        float into = glm::dot(v, result.normal);
+        if (into < 0)
+            v -= result.normal * into;
+
+        p.vel = v;
+
+        // Ground check = slope angle < threshold
+        if (result.normal.y > 0.7f)
+        {
+            p.onGround = true;
+            p.vel.y = 0;
+        }
+    }
+    else
+    {
+        p.pos = end;
+    }
+
 
     /*
     todo nov 6 2025
@@ -229,6 +385,8 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     of our collisions
     */
 
+    // dec 3 2025 todo delete eventually 
+    // ALSO ITS A HITBOX NOT A CAPSULE 
     // --- TRUE TRIANGLE GROUNDING (mesh raycast) ---
     OBB obb = p.getOBB();
 

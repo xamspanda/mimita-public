@@ -97,7 +97,10 @@ int main() {
     GLuint playerTex = loadTexture("assets/textures/greenwirev1.png");
 
     printf("Loading map...\n");
+    // 4 squares trailer map
     Mesh map = loadOBJ("assets/maps/mimita-4-squares-map-v1.obj");
+    // collisions test map dec 3 2025
+    Mesh map = loadOBJ("assets/maps/mimita-collisions-test-map.obj");
     if (map.verts.empty()) {
         fprintf(stderr, "Map failed to load or has 0 verts.\n");
         return -1;
