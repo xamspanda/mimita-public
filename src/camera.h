@@ -16,11 +16,21 @@ inline float CAMERA_SHOULDER_OFFSET = 1.0f;
  */
 
 // dec 3 2025 values v2
-inline float CAMERA_DISTANCE = 4.0f;  // closer
+/**
+ * 
+ * inline float CAMERA_DISTANCE = 4.0f;  // closer
 inline float CAMERA_HEIGHT   = 2.5f;  // higher
 inline float CAMERA_SENS     = 0.12f; // a little fast
 inline float CAMERA_FOV      = 90.0f; // todo add 0.01 and 359.9 capabilites
 inline float CAMERA_SHOULDER_OFFSET = 1.2f; // a lil further 
+ */
+
+// dec 3 2025 values v3
+inline float CAMERA_DISTANCE = 4.0f;  // closer
+inline float CAMERA_HEIGHT   = 3.5f;  // higher
+inline float CAMERA_SENS     = 0.15f; // a little fast
+inline float CAMERA_FOV      = 90.0f; // todo add 0.01 and 359.9 capabilites
+inline float CAMERA_SHOULDER_OFFSET = 1.5f; // a lil further 
  
 class Camera {
 public:

@@ -254,11 +254,11 @@ static SweepResult sweepPointTriangle(
 }
 
 // dec 3 2025 more sweeping todo 
-static SweepResult sweepCapsuleMesh(
+static SweepResult sweepBoxMesh(
     const Mesh& mesh,
     const glm::vec3& start,
     const glm::vec3& end,
-    float radius)
+    const glm::vec3& halfExtents)    // half of hitboxSize
 {
     SweepResult best;
     best.hit = false;
@@ -270,17 +270,25 @@ static SweepResult sweepCapsuleMesh(
         glm::vec3 v1 = mesh.verts[i+1].pos;
         glm::vec3 v2 = mesh.verts[i+2].pos;
 
-        // Inflate triangle by capsule radius (move point outward)
-        glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-        /**
-         * dec 3 2025 todo dont have this for now idk what it is         
-        v0 += n * radius;
-        v1 += n * radius;
-        v2 += n * radius;
+        // Minkowski expansion:
+        // Shrink the player to a point by expanding the triangles.
+        glm::vec3 ex = glm::vec3(halfExtents.x, 0, halfExtents.z);
 
-         */
+        glm::vec3 v0e = v0;
+        glm::vec3 v1e = v1;
+        glm::vec3 v2e = v2;
 
-        SweepResult hit = sweepPointTriangle(start, end, v0, v1, v2);
+        // Expand XZ (walls)
+        v0e -= ex;
+        v1e -= ex;
+        v2e -= ex;
+
+        // Expand Y (floor / ceiling)
+        v0e.y -= halfExtents.y;
+        v1e.y -= halfExtents.y;
+        v2e.y -= halfExtents.y;
+
+        SweepResult hit = sweepPointTriangle(start, end, v0e, v1e, v2e);
         if (hit.hit && hit.t < best.t)
             best = hit;
     }
@@ -338,7 +346,8 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     // DONT DO CAPSULE WE'RE DOING a box. dec 3 2025 
     float rad = 0.5f * p.hitboxSize.x; // approximate capsule radius
 
-    SweepResult result = sweepCapsuleMesh(world, start, end, rad);
+    glm::vec3 half = p.hitboxSize * 0.5f;
+    SweepResult result = sweepBoxMesh(world, start, end, half);
 
     if (result.hit)
     {
