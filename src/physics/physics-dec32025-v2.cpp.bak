@@ -12,14 +12,6 @@
 #include <iostream>
 #include <Windows.h>
 
-// dec 3 2025 idk where put this
-// prob should go in a centralized player config file
-// MAKE THIS LIKE 89 DEGREES LATER after testing done 
-const float MAX_WALKABLE_ANGLE = 50.0f;  // degrees
-const float MAX_WALKABLE_DOT = cos(glm::radians(MAX_WALKABLE_ANGLE));
-// dec 3 2025 this rl tall maybe dont 
-const float STEP_HEIGHT = 0.5f;
-
 // dec 2 2025 todo no idea whre put this 
 static glm::vec3 getBottomCorner(const OBB& obb, float sx, float sz)
 {
@@ -262,66 +254,40 @@ static SweepResult sweepPointTriangle(
 }
 
 // dec 3 2025 more sweeping todo 
-// Sweep all 8 corners of the box as points
 static SweepResult sweepBoxMesh(
     const Mesh& mesh,
-    const glm::vec3& startCenter,
-    const glm::vec3& endCenter,
-    const glm::vec3& half)
+    const glm::vec3& start,
+    const glm::vec3& end,
+    const glm::vec3& halfExtents)
 {
     SweepResult best;
     best.hit = false;
     best.t = 1.0f;
 
-    // 8 corner offsets
-    glm::vec3 offs[8] = {
-        {+half.x, +half.y, +half.z},
-        {+half.x, +half.y, -half.z},
-        {+half.x, -half.y, +half.z},
-        {+half.x, -half.y, -half.z},
-        {-half.x, +half.y, +half.z},
-        {-half.x, +half.y, -half.z},
-        {-half.x, -half.y, +half.z},
-        {-half.x, -half.y, -half.z}
-    };
-
-    for (int c = 0; c < 8; c++)
+    for (size_t i = 0; i < mesh.verts.size(); i += 3)
     {
-        glm::vec3 start = startCenter + offs[c];
-        glm::vec3 end   = endCenter   + offs[c];
+        glm::vec3 v0 = mesh.verts[i+0].pos;
+        glm::vec3 v1 = mesh.verts[i+1].pos;
+        glm::vec3 v2 = mesh.verts[i+2].pos;
 
-        for (size_t i = 0; i < mesh.verts.size(); i += 3)
-        {
-            const glm::vec3& v0 = mesh.verts[i+0].pos;
-            const glm::vec3& v1 = mesh.verts[i+1].pos;
-            const glm::vec3& v2 = mesh.verts[i+2].pos;
+        // Expand for XZ hull
+        // glm::vec3 ex(halfExtents.x, 0, halfExtents.z);
+        // or no dec 3 2025
+        glm::vec3 ex = halfExtents;
+        glm::vec3 v0e = v0;
+        glm::vec3 v1e = v1;
+        glm::vec3 v2e = v2;
 
-            glm::vec3 triNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-            /**
-                Why 0.6?
-                cos(≈53 degrees) ≈ 0.6
-                So any slope less steep than 53° is treated as “the ground”
-                You still collide with walls
-                You still collide with steep slopes
-                You do NOT collide sideways with the floor
-                SO LATER WE NEED TO NOT HAVE IT BE HARD CODED 0.6 NEED STEEPER ALLOWED ANGLE
-             */
-            // Skip triangles the PLAYER should be able to stand on
-            if (triNormal.y > MAX_WALKABLE_DOT) {
-                continue;   // treat as floor, ignore horizontal sweep hits
-            }
+        // Inflate triangle by box in *both directions*
+        v0e.x -= ex.x; v1e.x -= ex.x; v2e.x -= ex.x;
+        v0e.z -= ex.z; v1e.z -= ex.z; v2e.z -= ex.z;
 
-            SweepResult hit = sweepPointTriangle(start, end, v0, v1, v2);
+        v0e.x += ex.x; v1e.x += ex.x; v2e.x += ex.x;
+        v0e.z += ex.z; v1e.z += ex.z; v2e.z += ex.z;
 
-            if (hit.hit && hit.t < best.t)
-            {
-                best = hit;
-
-                // Very slight bias: stop checking others if extremely close
-                if (best.t < 0.0001f)
-                    return best;
-            }
-        }
+        SweepResult hit = sweepPointTriangle(start, end, v0e, v1e, v2e);
+        if (hit.hit && hit.t < best.t)
+            best = hit;
     }
 
     return best;
@@ -332,6 +298,11 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     glm::vec3 forward = glm::normalize(glm::vec3(cam.front.x, 0, cam.front.z));
     glm::vec3 right   = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
 
+    // dec 3 2025 idk where put this
+    // prob should go in a centralized player config file
+    // MAKE THIS LIKE 89 DEGREES LATER after testing done 
+    const float MAX_WALKABLE_ANGLE = 50.0f;  // degrees
+    const float MAX_WALKABLE_DOT = cos(glm::radians(MAX_WALKABLE_ANGLE));
 
     /*
     this is how characters move in the entire game
@@ -384,36 +355,6 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     glm::vec3 centerStart = p.pos + glm::vec3(0, half.y, 0);
     glm::vec3 centerEnd   = centerStart + p.vel * dt;
 
-    // Try stepping up before normal movement
-    // Only attempt step-up if actually moving
-    float horizSpeed = glm::length(glm::vec2(p.vel.x, p.vel.z));
-    bool wantsStep = horizSpeed > 0.001f;
-
-    if (wantsStep)
-    {
-        // First check: normal movement hits something?
-        SweepResult normalCheck = sweepBoxMesh(world, centerStart, centerEnd, half);
-
-        if (normalCheck.hit)
-        {
-            // Try stepping up
-            glm::vec3 stepPos = p.pos;
-            stepPos.y += STEP_HEIGHT;
-
-            glm::vec3 stepCenterStart = stepPos + glm::vec3(0, half.y, 0);
-            glm::vec3 stepCenterEnd   = stepCenterStart + p.vel * dt;
-
-            SweepResult stepCheck = sweepBoxMesh(world, stepCenterStart, stepCenterEnd, half);
-
-            if (!stepCheck.hit)
-            {
-                // valid step
-                p.pos = stepPos + p.vel * dt;
-                return;
-            }
-        }
-    }
-
     // USE CENTER, not FEET
     SweepResult result = sweepBoxMesh(world, centerStart, centerEnd, half);
 
@@ -428,11 +369,12 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
         p.vel = v;
 
         // Fix vertical placement - stand on the floor
-        bool isFloor = result.normal.y > 0.6f;
-        if (isFloor) {
-            p.onGround = true;
-            p.vel.y = 0;
-        } else {
+        if (glm::dot(result.normal, glm::vec3(0,1,0)) > MAX_WALKABLE_DOT)
+        {
+            // it's a floor
+        }
+        else {
+            // wall - don't treat it as ground
             p.onGround = false;
         }
 
