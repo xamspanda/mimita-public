@@ -307,10 +307,8 @@ static SweepResult sweepBoxMesh(
                 SO LATER WE NEED TO NOT HAVE IT BE HARD CODED 0.6 NEED STEEPER ALLOWED ANGLE
              */
             // Skip triangles the PLAYER should be able to stand on
-            if (triNormal.y > MAX_WALKABLE_DOT) {
-                continue;   // treat as floor, ignore horizontal sweep hits
-            }
-
+            // do NOT skip walkable triangles
+            // instead: always test sweep, then decide later if it's floor
             SweepResult hit = sweepPointTriangle(start, end, v0, v1, v2);
 
             if (hit.hit && hit.t < best.t)
