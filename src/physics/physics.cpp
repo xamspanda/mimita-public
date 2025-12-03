@@ -453,43 +453,41 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     {
         glm::vec3 newCenter = centerStart + (centerEnd - centerStart) * result.t;
 
-        // Slide velocity
+        // --- EARLY STEEP SLOPE HANDLING (fixes falling through) ---
+        bool tooSteep = (result.normal.y < MAX_WALKABLE_DOT);
+        if (tooSteep)
+        {
+            float intoSlope = glm::dot(p.vel, result.normal);
+            if (intoSlope < 0.0f)
+                p.vel -= result.normal * intoSlope;  // remove motion INTO slope
+
+            p.onGround = false;
+        }
+
+        // Slide velocity (after steep-slope correction)
         glm::vec3 v = p.vel;
         float into = glm::dot(v, result.normal);
         if (into < 0) v -= result.normal * into;
         p.vel = v;
 
-        // If slope is too steep, apply surfing (Source engine behavior)
-        if (result.normal.y < MAX_WALKABLE_DOT) 
+        // Grounding check ONLY if slope is walkable
+        if (!tooSteep && result.normal.y > 0.6f)
         {
-            // Can't stand on it
-            p.onGround = false;
-
-            // Remove vertical velocity component INTO the slope
-            float intoSlope = glm::dot(p.vel, result.normal);
-            if (intoSlope < 0)
-                p.vel -= result.normal * intoSlope;
-
-            // No upward snap allowed on steep slopes
-        }
-
-        // Fix vertical placement - stand on the floor
-        bool isFloor = result.normal.y > 0.6f;
-        if (isFloor) {
             p.onGround = true;
             p.vel.y = 0;
-        } else {
+        }
+        else
+        {
             p.onGround = false;
         }
 
-        // Push slightly out of the hit surface to avoid embedding
+        // Push out of geometry
         p.pos = newCenter - glm::vec3(0, half.y, 0) + result.normal * 0.001f;
     }
     else
     {
         glm::vec3 newCenter = centerEnd;
-        // Push slightly out of the hit surface to avoid embedding
-        p.pos = newCenter - glm::vec3(0, half.y, 0) + result.normal * 0.001f;
+        p.pos = newCenter - glm::vec3(0, half.y, 0);
     }
 
     // --- UNIVERSAL UN-STUCK PASS ---
