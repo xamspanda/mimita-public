@@ -27,11 +27,27 @@ public:
     // Orientation
     float yaw = 0.0f;   // <-- THIS was missing
 
-    // Hitbox
+    // --- HITBOX SECTION START ---
     // dec 2 2025 this size shouldddd be like robloxian
     // head torso and legs are solid but arms arent
-    glm::vec3 hitboxSize = {1.0f, 1.8f, 0.35f}; 
-    glm::vec3 hitboxOffset = {0.0f, 0.0f, 0.0f};
+    // dec 3 2025 todo is THIS hitbox size or is the other one hitbox size
+    // glm::vec3 hitboxSize = {1.0f, 1.8f, 0.35f}; 
+    // default offset
+        // hitboxOffset = glm::vec3(0.0f, hitboxSize.y * 0.5f, 0.0f);
+    // new offset dec 3 2025 todo
+        // glm::vec3 hitboxOffset = {0.0f, hitboxSize.y * 0.5f, 0.0f};
+
+    // dec 3 2025 todo skipping it so that player.cpp can do it
+    // even tho i hate that 
+    // but we will consolidate later, just make it work for now 
+    glm::vec3 hitboxSize;
+    glm::vec3 hitboxOffset;
+
+    // the origin is the center of torso
+    // but dont make me just sit in the floor bc my center of torso is on the floor
+    // make the edges of the torso do it 
+    // glm::vec3 hitboxOffset = {0.0f, 0.0f, 0.0f};
+    // --- HITBOX SECTION END ---
 
     // Mesh
     glm::vec3 meshScale  = {1,1,1};

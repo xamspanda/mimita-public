@@ -67,12 +67,31 @@ Player::Player() {
     // default spawn
     // pos = glm::vec3(0.0f, 2.0f, 0.0f);
     // higher spawn
+    // pos = glm::vec3(0.0f, 30.0f, 0.0f);
+    // vel = glm::vec3(0.0f);
+    // onGround = false;
+    // todo NO MORE HARD CODINGGGGGG dec 2 2025
+    // this is hitbox actual definition i think i dont know
+    // dec 3 2025 todo is THIS hitbox size or is the other one hitbox size
+    // 1 blender unit = 1 meter = 1 mimita unit
+    // so 25 units = 25 meters,
+    // and techinically height should be 1.8m but oh well scaling 
+    // default/small
+    // hitboxSize = glm::vec3(1.2f, 1.8f, 0.4f);
+
+    // big 1
+   //  hitboxSize = glm::vec3(4.0f, 6.0f, 4.0f);
+
+    // bigger
+    hitboxSize = glm::vec3(8.0f, 12.0f, 8.0f);
+    // compute offset AFTER size is correct
+    hitboxOffset = glm::vec3(0.0f, hitboxSize.y * 0.5f, 0.0f);
+
     pos = glm::vec3(0.0f, 30.0f, 0.0f);
     vel = glm::vec3(0.0f);
     onGround = false;
-    // todo NO MORE HARD CODINGGGGGG dec 2 2025
-    // this is hitbox actual definition i think i dont know
-    hitboxSize = glm::vec3(1.2f, 1.8f, 0.4f);
+
+
 }
 
 void Player::reset() {
