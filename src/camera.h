@@ -5,12 +5,23 @@
 #include <glm/glm.hpp>
 #include <GLFW/glfw3.h>
 
-inline float CAMERA_DISTANCE = 4.0f;  // closer
+/**
+ * dec 3 2025 todo backup
+ * inline float CAMERA_DISTANCE = 4.0f;  // closer
 inline float CAMERA_HEIGHT   = 1.5f;  // lower
 inline float CAMERA_SENS     = 0.1f;
 inline float CAMERA_FOV      = 90.0f; // todo add 0.01 and 359.9 capabilites
 inline float CAMERA_SHOULDER_OFFSET = 1.0f;
 
+ */
+
+// dec 3 2025 values v2
+inline float CAMERA_DISTANCE = 4.0f;  // closer
+inline float CAMERA_HEIGHT   = 2.5f;  // higher
+inline float CAMERA_SENS     = 0.12f; // a little fast
+inline float CAMERA_FOV      = 90.0f; // todo add 0.01 and 359.9 capabilites
+inline float CAMERA_SHOULDER_OFFSET = 1.2f; // a lil further 
+ 
 class Camera {
 public:
     glm::vec3 pos{0, CAMERA_HEIGHT, CAMERA_DISTANCE};
