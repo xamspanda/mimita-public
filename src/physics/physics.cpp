@@ -271,7 +271,9 @@ static SweepResult sweepBoxMesh(
         glm::vec3 v2 = mesh.verts[i+2].pos;
 
         // Expand for XZ hull
-        glm::vec3 ex(halfExtents.x, 0, halfExtents.z);
+        // glm::vec3 ex(halfExtents.x, 0, halfExtents.z);
+        // or no dec 3 2025
+        glm::vec3 ex = halfExtents;
 
         glm::vec3 v0e = v0 - ex;
         glm::vec3 v1e = v1 - ex;
@@ -361,8 +363,7 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
 
         // Fix vertical placement - stand on the floor
         if (result.normal.y > 0.7f) {
-            float floorY = result.hitPoint.y;
-            newCenter.y = floorY + half.y;
+            newCenter.y = result.hitPoint.y + half.y + 0.001f; // tiny bias
             p.onGround = true;
             p.vel.y = 0;
         }
@@ -373,6 +374,14 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     {
         glm::vec3 newCenter = centerEnd;
         p.pos = newCenter - glm::vec3(0, half.y, 0);
+    }
+
+        // Overlap check - push player up if inside geometry
+    float floorY = raycastMeshDown(world, p.pos + glm::vec3(0, half.y + 0.01f, 0));
+    if (floorY > p.pos.y) {
+        p.pos.y = floorY;
+        p.vel.y = 0;
+        p.onGround = true;
     }
 
     /*
