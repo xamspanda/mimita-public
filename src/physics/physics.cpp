@@ -306,9 +306,7 @@ static SweepResult sweepBoxMesh(
                 You do NOT collide sideways with the floor
                 SO LATER WE NEED TO NOT HAVE IT BE HARD CODED 0.6 NEED STEEPER ALLOWED ANGLE
              */
-            // Skip triangles the PLAYER should be able to stand on
-            // do NOT skip walkable triangles
-            // instead: always test sweep, then decide later if it's floor
+
             SweepResult hit = sweepPointTriangle(start, end, v0, v1, v2);
 
             if (hit.hit && hit.t < best.t)
@@ -346,8 +344,13 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
 
     // movement and gravity from config
     // dec 2 2025 includes air strafe maybe
-    if (p.onGround)
+    if (p.onGround || p.vel.y < 0.0f)
     {
+        // === DEBUG ===
+        std::cout << "pos.y=" << p.pos.y
+                << " vel.y=" << p.vel.y
+                << "\n";
+
         // Standard grounded movement
         p.vel.x = dir.x * PHYS.moveSpeed;
         p.vel.z = dir.z * PHYS.moveSpeed;
@@ -355,7 +358,6 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     else
     {
         // AIR MOVEMENT
-        // todo dec 3 2025 make nice and fix and not ultra fast but a lil fast 
         if (glm::length(dir) > 0)
             applyAirStrafe(p, dir, dt);
     }
@@ -447,40 +449,54 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     // USE CENTER, not FEET
     SweepResult result = sweepBoxMesh(world, centerStart, centerEnd, half);
 
-    if (result.hit)
-    {
-        glm::vec3 newCenter = centerStart + (centerEnd - centerStart) * result.t;
+if (result.hit)
+{
+    glm::vec3 newCenter = centerStart + (centerEnd - centerStart) * result.t;
+    float dotUp = result.normal.y;
 
-        // --- EARLY STEEP SLOPE HANDLING (fixes falling through) ---
-        bool tooSteep = (result.normal.y < MAX_WALKABLE_DOT);
-        if (tooSteep)
-        {
-            float intoSlope = glm::dot(p.vel, result.normal);
-            if (intoSlope < 0.0f)
-                p.vel -= result.normal * intoSlope;  // remove motion INTO slope
-
-            p.onGround = false;
-        }
-
-        // Slide velocity (after steep-slope correction)
-        glm::vec3 v = p.vel;
-        float into = glm::dot(v, result.normal);
-        if (into < 0) v -= result.normal * into;
-        p.vel = v;
-
-        // Grounding check ONLY if slope is walkable
-        if (!tooSteep && result.normal.y > 0.6f)
+        // --- 1. WALKABLE FLOOR ---
+        if (dotUp >= MAX_WALKABLE_DOT)
         {
             p.onGround = true;
-            p.vel.y = 0;
-        }
-        else
-        {
-            p.onGround = false;
+
+            // remove velocity into the floor
+            float into = glm::dot(p.vel, result.normal);
+            if (into < 0.0f)
+                p.vel -= result.normal * into;
+
+            // kill downward falling
+            if (p.vel.y < 0) p.vel.y = 0;
+
+            // snap position
+            p.pos = newCenter - glm::vec3(0, half.y, 0) + result.normal * 0.001f;
+            return;
         }
 
-        // Push out of geometry
-        p.pos = newCenter - glm::vec3(0, half.y, 0) + result.normal * 0.001f;
+        // --- 2. STEEP SLOPE (surf slope) ---
+        if (dotUp > 0.0f)
+        {
+            p.onGround = false;
+
+            float into = glm::dot(p.vel, result.normal);
+            if (into < 0.0f)
+                p.vel -= result.normal * into;  // remove INTO slope
+
+            // allow horizontal slide
+            p.pos = newCenter - glm::vec3(0, half.y, 0) + result.normal * 0.001f;
+            return;
+        }
+
+        // --- 3. WALL ---
+        {
+            p.onGround = false;
+
+            float into = glm::dot(p.vel, result.normal);
+            if (into < 0.0f)
+                p.vel -= result.normal * into;
+
+            p.pos = newCenter - glm::vec3(0, half.y, 0) + result.normal * 0.001f;
+            return;
+        }
     }
     else
     {
@@ -489,46 +505,42 @@ void updatePhysics(Player& p, const Mesh& world, GLFWwindow* w, float dt, const 
     }
 
     // --- UNIVERSAL UN-STUCK PASS ---
-    // Cast *from ABOVE* the player, not from their position.
-    // This guarantees you find the correct top surface even if you're embedded.
-
-    glm::vec3 probeOrigin = p.pos + glm::vec3(0, half.y + 2.0f, 0);  // always above player
-    float surfaceY = raycastMeshDown(world, probeOrigin);
-
-    float playerFeet = p.pos.y;
-    float penetration = surfaceY - playerFeet;
-
-    // If feet are below the actual surface by more than a hair, snap up.
-    if (penetration > 0.001f && penetration < 2.0f)
+    if (p.onGround)   // ONLY run when grounded
     {
-        // get normal under player
-        glm::vec3 underN = findTriangleNormalAt(world, p.pos.x, p.pos.z);
+        glm::vec3 probeOrigin = p.pos + glm::vec3(0, half.y + 2.0f, 0);
+        float surfaceY = raycastMeshDown(world, probeOrigin);
 
-        // only snap if normal is walkable (<= 50 degrees)
-        if (underN.y > MAX_WALKABLE_DOT)
+        float playerFeet = p.pos.y;
+        float penetration = surfaceY - playerFeet;
+
+        if (penetration > 0.001f && penetration < 2.0f)
         {
-            p.pos.y = surfaceY + 0.001f;
-            p.vel.y = 0;
-            p.onGround = true;
+            glm::vec3 underN = findTriangleNormalAt(world, p.pos.x, p.pos.z);
+
+            if (underN.y > MAX_WALKABLE_DOT)   // only snap on walkable
+            {
+                p.pos.y = surfaceY + 0.001f;
+                p.vel.y = 0;
+                p.onGround = true;
+            }
         }
     }
-
-    /*
-    todo nov 6 2025
-    need much better collisions
-    to handle cylinders
-    spheres
-    triangles
-    rectangles
-    etc etc etc
-    i want it like tf2
-    tf2 is like you walk into a wall and you instant stop,
-    you dont bounce or squish like in roblox
-    but also like roblox
-    in roblox if you hold jump while ur character is squished between two parts
-    you can fling out
-    useful and fun mechanic
-    i dont want to code that in, i want it to be a result
-    of our collisions
-    */
+            /*
+            todo nov 6 2025
+            need much better collisions
+            to handle cylinders
+            spheres
+            triangles
+            rectangles
+            etc etc etc
+            i want it like tf2
+            tf2 is like you walk into a wall and you instant stop,
+            you dont bounce or squish like in roblox
+            but also like roblox
+            in roblox if you hold jump while ur character is squished between two parts
+            you can fling out
+            useful and fun mechanic
+            i dont want to code that in, i want it to be a result
+            of our collisions
+            */
 }
