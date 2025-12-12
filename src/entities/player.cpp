@@ -102,7 +102,10 @@ Player::Player() {
     // hitboxSize = glm::vec3(0.4f, 3.3f, 1.4f);
 
     // dec 12 2025 small to test if it does anything
-    hitboxSize = glm::vec3(0.1f, 1.0f, 0.5f);
+    // hitboxSize = glm::vec3(0.1f, 1.0f, 0.5f);
+
+    // dec 12 2025 it does nothing so i made it basicall 0 
+    hitboxSize = glm::vec3(0.001f, 0.001f, 0.001f);
 
     // ------------------------------------------------
     // --- fake stupid bullshit red hitbox end ---

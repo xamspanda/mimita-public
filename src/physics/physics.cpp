@@ -4,86 +4,80 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
-// ------------------------------
-// Constants
-// ------------------------------
-const float GRAVITY     = -25.0f;
-const float MOVE_SPEED  = 50.0f;
-const float JUMP_SPEED  = 10.0f;
+// -------------------------------------------------
+// Tunables
+// -------------------------------------------------
+const float GRAVITY         = -25.0f;
+const float MOVE_SPEED     = 15.0f;
+const float JUMP_SPEED     = 10.0f;
 
-const float CAPSULE_RADIUS = 0.35f;
+const float CAPSULE_RADIUS = 0.25f;
 const float CAPSULE_HEIGHT = 1.8f;
-const float FLOOR_MAX_ANGLE = 50.0f;
 
-const float FLOOR_MIN_DOT =
-    glm::cos(glm::radians(90.0f - FLOOR_MAX_ANGLE));
+const float MAX_SLOPE_DEG  = 50.0f;
+const float FLOOR_DOT_MIN  =
+    glm::cos(glm::radians(90.0f - MAX_SLOPE_DEG));
 
-// ------------------------------
-// Helpers
-// ------------------------------
-static inline float planeDist(const glm::vec3& p,
-                              const glm::vec3& n,
-                              const glm::vec3& p0)
-{
-    return glm::dot(p - p0, n);
-}
-
-static inline bool pointInTri(const glm::vec3& p,
-                              const glm::vec3& a,
-                              const glm::vec3& b,
-                              const glm::vec3& c,
-                              const glm::vec3& n)
-{
-    if (glm::dot(n, glm::cross(b - a, p - a)) < 0) return false;
-    if (glm::dot(n, glm::cross(c - b, p - b)) < 0) return false;
-    if (glm::dot(n, glm::cross(a - c, p - c)) < 0) return false;
-    return true;
-}
-
-static inline glm::vec3 projectToPlane(const glm::vec3& p,
-                                       const glm::vec3& n,
-                                       const glm::vec3& p0)
-{
-    float d = glm::dot(p - p0, n);
-    return p - n * d;
-}
-
-static inline glm::vec3 slideVector(const glm::vec3& v, const glm::vec3& n)
+// -------------------------------------------------
+// Small helpers
+// -------------------------------------------------
+static inline glm::vec3 slide(const glm::vec3& v, const glm::vec3& n)
 {
     return v - n * glm::dot(v, n);
 }
 
-/**
- * dec 12 2025 todo understnad what this even does 
- * even tho i think it helps collisions a lot
- * 
- */
+static inline float planeDist(
+    const glm::vec3& p,
+    const glm::vec3& n,
+    const glm::vec3& p0)
+{
+    return glm::dot(p - p0, n);
+}
 
-static bool sweepSphereTriangle(
+static inline bool pointInTri(
+    const glm::vec3& p,
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c,
+    const glm::vec3& n)
+{
+    return
+        glm::dot(n, glm::cross(b - a, p - a)) >= 0 &&
+        glm::dot(n, glm::cross(c - b, p - b)) >= 0 &&
+        glm::dot(n, glm::cross(a - c, p - c)) >= 0;
+}
+
+// -------------------------------------------------
+// Sphere sweep vs triangle
+// -------------------------------------------------
+static bool sweepSphereTri(
     const glm::vec3& center,
     float radius,
     const glm::vec3& move,
     const glm::vec3& a,
     const glm::vec3& b,
     const glm::vec3& c,
-    float& outT,
-    glm::vec3& outNormal
-) {
+    float& bestT,
+    glm::vec3& bestN)
+{
     glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
     if (glm::dot(n, n) < 1e-6f) return false;
 
     float d0 = planeDist(center, n, a);
     float d1 = planeDist(center + move, n, a);
 
-    // must cross plane toward triangle
-    if (d0 > radius && d1 < radius) {
+    if (d0 > radius && d1 < radius)
+    {
         float t = (d0 - radius) / (d0 - d1);
-        if (t < outT) {
-            glm::vec3 hitPos = center + move * t;
-            glm::vec3 proj = projectToPlane(hitPos, n, a);
-            if (pointInTri(proj, a, b, c, n)) {
-                outT = t;
-                outNormal = n;
+        if (t < bestT)
+        {
+            glm::vec3 hit = center + move * t;
+            glm::vec3 proj = hit - n * planeDist(hit, n, a);
+
+            if (pointInTri(proj, a, b, c, n))
+            {
+                bestT = t;
+                bestN = n;
                 return true;
             }
         }
@@ -91,18 +85,22 @@ static bool sweepSphereTriangle(
     return false;
 }
 
-
-
-// ==============================================
-// MAIN UPDATE FUNCTION
-// ==============================================
-void updatePhysics(Player& p, const Mesh& world,
-                   GLFWwindow* win, float dt, const Camera& cam)
+// -------------------------------------------------
+// Main physics update
+// -------------------------------------------------
+void updatePhysics(
+    Player& p,
+    const Mesh& world,
+    GLFWwindow* win,
+    float dt,
+    const Camera& cam)
 {
-    // movement input
-    glm::vec3 forward = glm::normalize(glm::vec3(cam.front.x, 0, cam.front.z));
-    glm::vec3 right   = glm::cross(forward, glm::vec3(0,1,0));
+    // ---------------- movement input ----------------
+    glm::vec3 forward(cam.front.x, 0, cam.front.z);
+    if (glm::dot(forward, forward) > 0.0f)
+        forward = glm::normalize(forward);
 
+    glm::vec3 right = glm::cross(forward, glm::vec3(0,1,0));
     glm::vec3 wish(0);
 
     if (glfwGetKey(win, GLFW_KEY_W)) wish += forward;
@@ -110,93 +108,76 @@ void updatePhysics(Player& p, const Mesh& world,
     if (glfwGetKey(win, GLFW_KEY_A)) wish -= right;
     if (glfwGetKey(win, GLFW_KEY_D)) wish += right;
 
-    if (glm::dot(wish, wish) > 0.0001f)
+    if (glm::dot(wish, wish) > 0.0f)
         wish = glm::normalize(wish);
 
     p.vel.x = wish.x * MOVE_SPEED;
     p.vel.z = wish.z * MOVE_SPEED;
 
-    // gravity
+    // ---------------- gravity / jump ----------------
     p.vel.y += GRAVITY * dt;
 
-    // jump
     if (p.onGround && glfwGetKey(win, GLFW_KEY_SPACE))
     {
         p.vel.y = JUMP_SPEED;
         p.onGround = false;
     }
 
-    glm::vec3 finalPos = p.pos;
+    // ---------------- movement vector ----------------
     glm::vec3 move = p.vel * dt;
+    glm::vec3 pos  = p.pos;
 
     p.onGround = false;
 
-    // -----------------------------
-    // sweep 4 iterations
-    // -----------------------------
-    for (int iter = 0; iter < 4; iter++)
+    // ---------------- substeps (anti-tunneling) ------
+    float maxStep = CAPSULE_RADIUS * 0.5f;
+    int steps = glm::clamp(
+        (int)glm::ceil(glm::length(move) / maxStep),
+        1, 2);
+
+    glm::vec3 stepMove = move / float(steps);
+
+    // ---------------- sweep & slide ------------------
+    for (int s = 0; s < steps; s++)
     {
-        float bestT = 1.0f;
-        glm::vec3 bestNormal(0);
-        bool hit = false;
+        glm::vec3 step = stepMove;
 
-    // test triangles (capsule = bottom sphere + top sphere)
-    for (size_t i = 0; i < world.verts.size(); i += 3)
-    {
-        glm::vec3 a = world.verts[i+0].pos;
-        glm::vec3 b = world.verts[i+1].pos;
-        glm::vec3 c = world.verts[i+2].pos;
-
-        // bottom sphere
-        glm::vec3 bottom = finalPos + glm::vec3(0, CAPSULE_RADIUS, 0);
-        if (sweepSphereTriangle(
-                bottom,
-                CAPSULE_RADIUS,
-                move,
-                a, b, c,
-                bestT,
-                bestNormal))
+        for (int iter = 0; iter < 4; iter++)
         {
-            hit = true;
-        }
+            float bestT = 1.0f;
+            glm::vec3 bestN(0);
+            bool hit = false;
 
-        // top sphere
-        glm::vec3 top = finalPos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
-        if (sweepSphereTriangle(
-                top,
-                CAPSULE_RADIUS,
-                move,
-                a, b, c,
-                bestT,
-                bestNormal))
-        {
-            hit = true;
+            for (size_t i = 0; i < world.verts.size(); i += 3)
+            {
+                const glm::vec3& a = world.verts[i+0].pos;
+                const glm::vec3& b = world.verts[i+1].pos;
+                const glm::vec3& c = world.verts[i+2].pos;
+
+                glm::vec3 bottom = pos + glm::vec3(0, CAPSULE_RADIUS, 0);
+                glm::vec3 top    = pos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
+
+                hit |= sweepSphereTri(bottom, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                hit |= sweepSphereTri(top,    CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+            }
+
+            if (!hit)
+            {
+                pos += step;
+                break;
+            }
+
+            pos += step * bestT;
+
+            if (bestN.y > FLOOR_DOT_MIN)
+            {
+                p.onGround = true;
+                p.vel.y = 0;
+            }
+
+            step = slide(step * (1.0f - bestT), bestN);
         }
     }
 
-        if (!hit)
-        {
-            finalPos += move;
-            break;
-        }
-
-        finalPos += move * bestT;
-
-        bool isFloor = bestNormal.y > FLOOR_MIN_DOT;
-
-        if (isFloor)
-        {
-            p.onGround = true;
-            p.vel.y = 0;
-
-            // slide ALONG the floor, not world-up
-            move = slideVector(move * (1 - bestT), bestNormal);
-        }
-        else
-        {
-            move = slideVector(move * (1 - bestT), bestNormal);
-        }
-    }
-
-    p.pos = finalPos;
+    p.pos = pos;
 }
