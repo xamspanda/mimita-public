@@ -83,6 +83,46 @@ static void pushOutSphere(
     }
 }
 
+// stuff that makes collisions better i dont know how 
+// but we r trying to get rid of raycast and floor snapping the Player t
+// to a specific y level bc that is cheating  and i dont like it 
+static void resolveCapsuleOverlap(
+    glm::vec3& pos,
+    const Mesh& world,
+    bool& onGround)
+{
+    glm::vec3 p0 = pos + glm::vec3(0, CAPSULE_RADIUS, 0);
+    glm::vec3 p1 = pos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
+
+    glm::vec3 m1 = glm::mix(p0, p1, 0.25f);
+    glm::vec3 m2 = glm::mix(p0, p1, 0.50f);
+    glm::vec3 m3 = glm::mix(p0, p1, 0.75f);
+
+    for (int iter = 0; iter < 3; iter++)
+    {
+        bool hitFloor = false;
+        glm::vec3 n;
+
+        for (size_t i = 0; i < world.verts.size(); i += 3)
+        {
+            const glm::vec3& a = world.verts[i+0].pos;
+            const glm::vec3& b = world.verts[i+1].pos;
+            const glm::vec3& c = world.verts[i+2].pos;
+
+            pushOutSphere(p0, CAPSULE_RADIUS, a,b,c, n, hitFloor);
+            pushOutSphere(m1, CAPSULE_RADIUS, a,b,c, n, hitFloor);
+            pushOutSphere(m2, CAPSULE_RADIUS, a,b,c, n, hitFloor);
+            pushOutSphere(m3, CAPSULE_RADIUS, a,b,c, n, hitFloor);
+            pushOutSphere(p1, CAPSULE_RADIUS, a,b,c, n, hitFloor);
+        }
+
+        pos = p0 - glm::vec3(0, CAPSULE_RADIUS, 0);
+
+        if (hitFloor)
+            onGround = true;
+    }
+}
+
 // -------------------------------------------------
 // Sphere sweep vs triangle
 // -------------------------------------------------
@@ -305,46 +345,20 @@ void updatePhysics(
         }
     }
 
-    // ---- HARD FLOOR SNAP (guaranteed) ----
-    // dec 12 2025 id like to not snap or clamp or do anything like that 
-    // just get the player to be on the part that theyre on  , no like 
-    // oh well we didnt  simulate where they are suposed to be so 
-    // were just going to put them at this spot to make things not break 
-    float bestY = -1e9f;
-    glm::vec3 floorN(0);
+        /**
+     * dec 12 2025
+     * no clamping to a floor, no raycasting (i think? i dont know but it seemswrong)
+     * the ideal is that 
+     * 1. the character touches the blocks
+     * 2. interacts with them as expected, no matter what
+     * e.g. walks over spheres, curves, triangles, 89 degreeangles, 0 degree angles (floors)
+     * everything is normal and works,
+     * and no phasing thru walls or thru the ground 
+     */
 
-    for (size_t i = 0; i < world.verts.size(); i += 3)
-    {
-        const glm::vec3& a = world.verts[i+0].pos;
-        const glm::vec3& b = world.verts[i+1].pos;
-        const glm::vec3& c = world.verts[i+2].pos;
-
-        float y;
-        glm::vec3 n;
-        if (raycastDownToTri(
-                pos + glm::vec3(0, CAPSULE_HEIGHT, 0),
-                CAPSULE_HEIGHT * 2.0f,
-                a, b, c,
-                y, n))
-        {
-            if (y > bestY)
-            {
-                bestY = y;
-                floorN = n;
-            }
-        }
-    }
-
-    if (bestY > -1e8f)
-    {
-        float targetY = bestY + CAPSULE_RADIUS;
-        if (pos.y < targetY)
-        {
-            pos.y = targetY;
-            p.vel.y = 0;
-            p.onGround = true;
-        }
-    }
+    // Final overlap resolution (walls + slopes)
+    resolveCapsuleOverlap(pos, world, p.onGround);
 
     p.pos = pos;
+
 }
