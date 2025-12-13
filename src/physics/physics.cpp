@@ -19,7 +19,7 @@ const float MAX_SLOPE_DEG  = 50.0f;
 const float FLOOR_DOT_MIN  =
     glm::cos(glm::radians(90.0f - MAX_SLOPE_DEG));
 
-const float SKIN = 0.01f; // 1cm
+const float SKIN = 0.002f; // not sure what this does dec 12 2025 
 
 // hack fix need something cooler later dec 12 2025 
 const float TRI_CULL_DIST = 25.0f; // only check triangles near player
@@ -66,8 +66,6 @@ static void pushOutSphere(
     glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
     if (glm::dot(n, n) < 1e-6f) return;
 
-    // ---- FORCE NORMAL UPWARD ----
-    if (n.y < 0) n = -n;
 
     float d = planeDist(center, n, a);
 
@@ -101,9 +99,6 @@ static bool sweepSphereTri(
     glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
     if (glm::dot(n, n) < 1e-6f) return false;
 
-    // ---- FORCE NORMAL UPWARD ----
-    if (n.y < 0) n = -n;
-
     float d0 = planeDist(center, n, a);
     float d1 = planeDist(center + move, n, a);
 
@@ -127,6 +122,30 @@ static bool sweepSphereTri(
     return false;
 }
 
+// dec 12 2025 raycastingidk if we do this or like if this is the best solution but 
+static bool raycastDownToTri(
+    const glm::vec3& origin,
+    float maxDist,
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c,
+    float& outY,
+    glm::vec3& outN)
+{
+    glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
+    if (fabs(n.y) < 0.001f) return false; // ignore walls
+
+    float d = planeDist(origin, n, a);
+    if (d < 0 || d > maxDist) return false;
+
+    glm::vec3 hit = origin - n * d;
+    if (!pointInTri(hit, a, b, c, n)) return false;
+
+    outY = hit.y;
+    outN = n;
+    return true;
+}
+
 // -------------------------------------------------
 // Main physics update
 // -------------------------------------------------
@@ -137,6 +156,8 @@ void updatePhysics(
     float dt,
     const Camera& cam)
 {
+    static bool didSpawnFix = false;
+
     // debug stuff bc keep falling thru floors 
     static bool printed = false;
     if (!printed) {
@@ -182,7 +203,8 @@ void updatePhysics(
 
     p.onGround = false;
 
-    // --- resolve overlap at current position (spawn safety) ---
+    // --- resolve overlap ONCE (spawn safety only) ---
+    if (!didSpawnFix)
     {
         glm::vec3 p0 = pos + glm::vec3(0, CAPSULE_RADIUS, 0);
         glm::vec3 p1 = pos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
@@ -200,14 +222,6 @@ void updatePhysics(
             const glm::vec3& b = world.verts[i+1].pos;
             const glm::vec3& c = world.verts[i+2].pos;
 
-            glm::vec3 triCenter = (a + b + c) * (1.0f / 3.0f);
-            // ---- TRI CULL (XZ ONLY) ----
-            // This keeps checking blocks below/above you.
-            float dx = triCenter.x - pos.x;
-            float dz = triCenter.z - pos.z;
-            float dist2 = dx*dx + dz*dz;
-            if (dist2 > TRI_CULL_DIST * TRI_CULL_DIST) continue;
-
             pushOutSphere(p0, CAPSULE_RADIUS, a,b,c, n, floorHit);
             pushOutSphere(m1, CAPSULE_RADIUS, a,b,c, n, floorHit);
             pushOutSphere(m2, CAPSULE_RADIUS, a,b,c, n, floorHit);
@@ -220,10 +234,11 @@ void updatePhysics(
         if (floorHit)
         {
             p.onGround = true;
-            if (p.vel.y < 0) p.vel.y = 0;
+            p.vel.y = 0;
         }
-    }
 
+        didSpawnFix = true;
+    }
 
     // ---------------- substeps (anti-tunneling) ------
     float maxStep = CAPSULE_RADIUS * 0.5f;
@@ -265,11 +280,11 @@ void updatePhysics(
                 glm::vec3 m2 = glm::mix(p0, p1, 0.50f);
                 glm::vec3 m3 = glm::mix(p0, p1, 0.75f);
 
-                hit |= sweepSphereTri(p0, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
-                hit |= sweepSphereTri(m1, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
-                hit |= sweepSphereTri(m2, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
-                hit |= sweepSphereTri(m3, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
-                hit |= sweepSphereTri(p1, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                if (sweepSphereTri(p0, CAPSULE_RADIUS, step, a,b,c, bestT, bestN)) hit = true;
+                if (sweepSphereTri(m1, CAPSULE_RADIUS, step, a,b,c, bestT, bestN)) hit = true;
+                if (sweepSphereTri(m2, CAPSULE_RADIUS, step, a,b,c, bestT, bestN)) hit = true;
+                if (sweepSphereTri(m3, CAPSULE_RADIUS, step, a,b,c, bestT, bestN)) hit = true;
+                if (sweepSphereTri(p1, CAPSULE_RADIUS, step, a,b,c, bestT, bestN)) hit = true;
             }
 
             if (!hit)
@@ -287,6 +302,47 @@ void updatePhysics(
             }
 
             step = slide(step * (1.0f - bestT), bestN);
+        }
+    }
+
+    // ---- HARD FLOOR SNAP (guaranteed) ----
+    // dec 12 2025 id like to not snap or clamp or do anything like that 
+    // just get the player to be on the part that theyre on  , no like 
+    // oh well we didnt  simulate where they are suposed to be so 
+    // were just going to put them at this spot to make things not break 
+    float bestY = -1e9f;
+    glm::vec3 floorN(0);
+
+    for (size_t i = 0; i < world.verts.size(); i += 3)
+    {
+        const glm::vec3& a = world.verts[i+0].pos;
+        const glm::vec3& b = world.verts[i+1].pos;
+        const glm::vec3& c = world.verts[i+2].pos;
+
+        float y;
+        glm::vec3 n;
+        if (raycastDownToTri(
+                pos + glm::vec3(0, CAPSULE_HEIGHT, 0),
+                CAPSULE_HEIGHT * 2.0f,
+                a, b, c,
+                y, n))
+        {
+            if (y > bestY)
+            {
+                bestY = y;
+                floorN = n;
+            }
+        }
+    }
+
+    if (bestY > -1e8f)
+    {
+        float targetY = bestY + CAPSULE_RADIUS;
+        if (pos.y < targetY)
+        {
+            pos.y = targetY;
+            p.vel.y = 0;
+            p.onGround = true;
         }
     }
 
