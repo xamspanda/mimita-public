@@ -3,6 +3,7 @@
 #include "../camera.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
+#include <cstdio>
 
 // -------------------------------------------------
 // Tunables
@@ -17,6 +18,11 @@ const float CAPSULE_HEIGHT = 1.8f;
 const float MAX_SLOPE_DEG  = 50.0f;
 const float FLOOR_DOT_MIN  =
     glm::cos(glm::radians(90.0f - MAX_SLOPE_DEG));
+
+const float SKIN = 0.01f; // 1cm
+
+// hack fix need something cooler later dec 12 2025 
+const float TRI_CULL_DIST = 25.0f; // only check triangles near player
 
 // -------------------------------------------------
 // Small helpers
@@ -47,6 +53,38 @@ static inline bool pointInTri(
         glm::dot(n, glm::cross(a - c, p - c)) >= 0;
 }
 
+// dont fall thru dec 12 2025
+static void pushOutSphere(
+    glm::vec3& center,
+    float radius,
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c,
+    glm::vec3& outN,
+    bool& outFloorHit)
+{
+    glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
+    if (glm::dot(n, n) < 1e-6f) return;
+
+    // ---- FORCE NORMAL UPWARD ----
+    if (n.y < 0) n = -n;
+
+    float d = planeDist(center, n, a);
+
+    // if sphere center is within radius (or behind plane), it's overlapping
+    if (d < radius)
+    {
+        glm::vec3 proj = center - n * d;
+        if (!pointInTri(proj, a, b, c, n)) return;
+
+        float push = (radius - d);
+        center += n * push;
+
+        outN = n;
+        if (n.y > FLOOR_DOT_MIN) outFloorHit = true;
+    }
+}
+
 // -------------------------------------------------
 // Sphere sweep vs triangle
 // -------------------------------------------------
@@ -63,12 +101,16 @@ static bool sweepSphereTri(
     glm::vec3 n = glm::normalize(glm::cross(b - a, c - a));
     if (glm::dot(n, n) < 1e-6f) return false;
 
+    // ---- FORCE NORMAL UPWARD ----
+    if (n.y < 0) n = -n;
+
     float d0 = planeDist(center, n, a);
     float d1 = planeDist(center + move, n, a);
 
-    if (d0 > radius && d1 < radius)
+    float r = radius + SKIN;
+    if (d0 >= r && d1 <= r)
     {
-        float t = (d0 - radius) / (d0 - d1);
+        float t = (d0 - r) / (d0 - d1);
         if (t < bestT)
         {
             glm::vec3 hit = center + move * t;
@@ -95,6 +137,17 @@ void updatePhysics(
     float dt,
     const Camera& cam)
 {
+    // debug stuff bc keep falling thru floors 
+    static bool printed = false;
+    if (!printed) {
+        fprintf(stderr, "PHYSICS TRI COUNT = %zu\n", world.verts.size() / 3);
+        if (!world.verts.empty()) {
+            auto& v = world.verts[0].pos;
+            fprintf(stderr, "FIRST TRI VERT = (%f, %f, %f)\n", v.x, v.y, v.z);
+        }
+        printed = true;
+    }
+
     // ---------------- movement input ----------------
     glm::vec3 forward(cam.front.x, 0, cam.front.z);
     if (glm::dot(forward, forward) > 0.0f)
@@ -129,6 +182,49 @@ void updatePhysics(
 
     p.onGround = false;
 
+    // --- resolve overlap at current position (spawn safety) ---
+    {
+        glm::vec3 p0 = pos + glm::vec3(0, CAPSULE_RADIUS, 0);
+        glm::vec3 p1 = pos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
+
+        glm::vec3 m1 = glm::mix(p0, p1, 0.25f);
+        glm::vec3 m2 = glm::mix(p0, p1, 0.50f);
+        glm::vec3 m3 = glm::mix(p0, p1, 0.75f);
+
+        bool floorHit = false;
+        glm::vec3 n(0);
+
+        for (size_t i = 0; i < world.verts.size(); i += 3)
+        {
+            const glm::vec3& a = world.verts[i+0].pos;
+            const glm::vec3& b = world.verts[i+1].pos;
+            const glm::vec3& c = world.verts[i+2].pos;
+
+            glm::vec3 triCenter = (a + b + c) * (1.0f / 3.0f);
+            // ---- TRI CULL (XZ ONLY) ----
+            // This keeps checking blocks below/above you.
+            float dx = triCenter.x - pos.x;
+            float dz = triCenter.z - pos.z;
+            float dist2 = dx*dx + dz*dz;
+            if (dist2 > TRI_CULL_DIST * TRI_CULL_DIST) continue;
+
+            pushOutSphere(p0, CAPSULE_RADIUS, a,b,c, n, floorHit);
+            pushOutSphere(m1, CAPSULE_RADIUS, a,b,c, n, floorHit);
+            pushOutSphere(m2, CAPSULE_RADIUS, a,b,c, n, floorHit);
+            pushOutSphere(m3, CAPSULE_RADIUS, a,b,c, n, floorHit);
+            pushOutSphere(p1, CAPSULE_RADIUS, a,b,c, n, floorHit);
+        }
+
+        pos = p0 - glm::vec3(0, CAPSULE_RADIUS, 0);
+
+        if (floorHit)
+        {
+            p.onGround = true;
+            if (p.vel.y < 0) p.vel.y = 0;
+        }
+    }
+
+
     // ---------------- substeps (anti-tunneling) ------
     float maxStep = CAPSULE_RADIUS * 0.5f;
     int steps = glm::clamp(
@@ -154,11 +250,26 @@ void updatePhysics(
                 const glm::vec3& b = world.verts[i+1].pos;
                 const glm::vec3& c = world.verts[i+2].pos;
 
-                glm::vec3 bottom = pos + glm::vec3(0, CAPSULE_RADIUS, 0);
-                glm::vec3 top    = pos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
+                glm::vec3 triCenter = (a + b + c) * (1.0f / 3.0f);
+                // ---- TRI CULL (XZ ONLY) ----
+                // This keeps checking blocks below/above you.
+                float dx = triCenter.x - pos.x;
+                float dz = triCenter.z - pos.z;
+                float dist2 = dx*dx + dz*dz;
+                if (dist2 > TRI_CULL_DIST * TRI_CULL_DIST) continue;
 
-                hit |= sweepSphereTri(bottom, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
-                hit |= sweepSphereTri(top,    CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                glm::vec3 p0 = pos + glm::vec3(0, CAPSULE_RADIUS, 0);
+                glm::vec3 p1 = pos + glm::vec3(0, CAPSULE_HEIGHT - CAPSULE_RADIUS, 0);
+
+                glm::vec3 m1 = glm::mix(p0, p1, 0.25f);
+                glm::vec3 m2 = glm::mix(p0, p1, 0.50f);
+                glm::vec3 m3 = glm::mix(p0, p1, 0.75f);
+
+                hit |= sweepSphereTri(p0, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                hit |= sweepSphereTri(m1, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                hit |= sweepSphereTri(m2, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                hit |= sweepSphereTri(m3, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
+                hit |= sweepSphereTri(p1, CAPSULE_RADIUS, step, a,b,c, bestT, bestN);
             }
 
             if (!hit)

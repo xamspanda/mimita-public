@@ -124,6 +124,29 @@ int main() {
     // sizing test dec 4 2025 test
     Mesh map = loadOBJ("assets/maps/mimita-sizing-v1.obj");
 
+    // do this so that the map actually has data for us to walk on 
+    // ---- BAKE MAP TRANSFORM FOR PHYSICS ----
+    glm::mat4 mapTransform = glm::mat4(1.0f);
+
+    // example values – adjust if you move/scale the map
+    mapTransform = glm::scale(mapTransform, glm::vec3(1.0f));
+    mapTransform = glm::translate(mapTransform, glm::vec3(0.0f));
+    mapTransform = glm::rotate(mapTransform, 0.0f, glm::vec3(0,1,0));
+
+    for (auto& v : map.verts) {
+        glm::vec4 p = mapTransform * glm::vec4(v.pos, 1.0f);
+        v.pos = glm::vec3(p);
+    }
+
+    // debug to see if it actually wokrs dec 12 2025
+        glm::vec3 min(1e9f), max(-1e9f);
+    for (auto& v : map.verts) {
+        min = glm::min(min, v.pos);
+        max = glm::max(max, v.pos);
+    }
+    fprintf(stderr, "MAP AABB min(%f %f %f) max(%f %f %f)\n",
+            min.x, min.y, min.z, max.x, max.y, max.z);
+
     if (map.verts.empty()) {
         fprintf(stderr, "Map failed to load or has 0 verts.\n");
         return -1;
