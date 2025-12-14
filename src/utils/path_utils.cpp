@@ -181,12 +181,16 @@ std::string findSystemFont(const std::string& preferredFont) {
     }
     
 #elif defined(__linux__)
-    // Linux font locations
+    // Linux font locations (check subdirectories too)
     const char* fontDirs[] = {
         "/usr/share/fonts/truetype/",
         "/usr/share/fonts/TTF/",
+        "/usr/share/fonts/Adwaita/",
+        "/usr/share/fonts/noto/",
+        "/usr/share/fonts/liberation/",
         "/usr/share/fonts/",
         "~/.fonts/",
+        "~/.local/share/fonts/",
         nullptr
     };
     
@@ -195,6 +199,7 @@ std::string findSystemFont(const std::string& preferredFont) {
         fontName += ".ttf";
     }
     
+    // Try preferred font first
     for (int i = 0; fontDirs[i] != nullptr; ++i) {
         std::string dir(fontDirs[i]);
         if (dir[0] == '~') {
@@ -211,6 +216,47 @@ std::string findSystemFont(const std::string& preferredFont) {
         if (testFile.good()) {
             testFile.close();
             return fullPath;
+        }
+        
+        // Try with .otf extension
+        std::string otfPath = dir + preferredFont + ".otf";
+        testFile.open(otfPath);
+        if (testFile.good()) {
+            testFile.close();
+            return otfPath;
+        }
+    }
+    
+    // Fallback fonts common on Linux systems
+    const char* fallbacks[] = {
+        "DejaVuSans.ttf",
+        "DejaVuSans-Bold.ttf",
+        "LiberationSans-Regular.ttf",
+        "NotoSans-Regular.ttf",
+        "AdwaitaSans-Regular.ttf",
+        "Ubuntu-Regular.ttf",
+        "Roboto-Regular.ttf",
+        nullptr
+    };
+    
+    for (int i = 0; fontDirs[i] != nullptr; ++i) {
+        std::string dir(fontDirs[i]);
+        if (dir[0] == '~') {
+            const char* home = getenv("HOME");
+            if (home) {
+                dir = std::string(home) + dir.substr(1);
+            } else {
+                continue;
+            }
+        }
+        
+        for (int j = 0; fallbacks[j] != nullptr; ++j) {
+            std::string fullPath = dir + fallbacks[j];
+            std::ifstream testFile(fullPath);
+            if (testFile.good()) {
+                testFile.close();
+                return fullPath;
+            }
         }
     }
 #endif

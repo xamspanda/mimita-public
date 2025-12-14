@@ -8,5 +8,5 @@
         "random": "cpp",
         "cmath": "cpp"
     },
-    "cmake.sourceDirectory": "/Users/Laura/Repos/mimita-public/external/include/glm"
+    "cmake.sourceDirectory": "/home/laura/Repos/mimita"
 }
