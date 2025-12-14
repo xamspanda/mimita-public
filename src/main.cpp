@@ -4,53 +4,31 @@
 #define GL_SILENCE_DEPRECATION
 #define GLFW_INCLUDE_NONE
 
-/*
-todo nov 6 2025
-sort the includes by directory and stuff
-*/
-
-#include "renderer/renderer.h"
-extern Renderer* gRenderer;
-
-#include "map/map_common.h"
-
+// System/external headers
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <cstdio>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-// later when we need our own sure
-// #include "map/map_editor.h"
-#include "entities/player.h"
-
-#include <vector>
 #include <algorithm>
-#include <cstdlib>   // for rand()
+#include <cstdio>
+#include <cstdlib>
 #include <ctime>
+#include <vector>
 
-#include "renderer/renderer.h"
-
-#include "map/texture.h"
-
+// Local headers
+#include "camera.h"
 #include "entities/enemy.h"
-#include "weapons/weapon.h"
-#include "weapons/projectile.h"
-
+#include "entities/player.h"
+#include "map/map_common.h"
 #include "map/map_loader.h"
 #include "map/map_render.h"
-
-#include "physics/physics.h"
-#include "physics/config.h"
-
+#include "map/texture.h"
 #include "map/texture_manager.h"
-#include <random>
-#include <ctime>
-
-#include "camera.h"
-
-// dec 3 2025 todo sort includes maybe 
+#include "physics/physics.h"
+#include "renderer/renderer.h"
 #include "utils/mesh_utils.h"
+#include "weapons/projectile.h"
+#include "weapons/weapon.h"
+
+extern Renderer* gRenderer;
 
 TextureManager TEX; // global instance
 GLuint groundTex;
@@ -211,6 +189,10 @@ int main() {
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"view"),1,GL_FALSE,&view[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram,"projection"),1,GL_FALSE,&proj[0][0]);
 
+        // Bind texture to texture unit 0 BEFORE setting sampler uniform (fixes Metal warning)
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, TEX.get(0));
+        
         // Right before calling drawMap(...) in main.cpp, add:
         glUniform1i(glGetUniformLocation(shaderProgram, "useTex"), true);
         glUniform1i(glGetUniformLocation(shaderProgram, "tex"), 0);

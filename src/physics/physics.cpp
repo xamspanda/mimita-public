@@ -14,7 +14,7 @@
  */
 
 #include "physics.h"
-#include "../camera.h"
+#include "camera.h"
 #include <glm/glm.hpp>
 
 // ---------------- constants ----------------

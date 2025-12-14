@@ -4,9 +4,9 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
-#include "../map/map_common.h"   // defines Mesh
+#include "map/map_common.h"   // defines Mesh
 #include "player.h"
-#include "../camera.h"
+#include "camera.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 // dec 2 2025 idk where put this todo 
@@ -52,7 +52,7 @@ static void initHitboxVAO()
 }
 
 // At the very top of player.cpp (below your includes), add:
-#include "../renderer/renderer.h"
+#include "renderer/renderer.h"
 extern Renderer* gRenderer;
 
 /*

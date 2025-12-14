@@ -1,2 +1,7 @@
 *.exe
-.o
+*.o
+compile_commands.json
+build/
+mimita
+mimita.exe
+run.log
