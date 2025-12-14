@@ -1,8 +1,5 @@
 CompileFlags:
-  Add:
-    - -I/Users/Laura/Repos/mimita-public/include
-    - -I/Users/Laura/Repos/mimita-public/src
-    - -I/Users/Laura/Repos/mimita-public/external/include
+  CompilationDatabase: .
 
 
 
