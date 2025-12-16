@@ -19,13 +19,7 @@
 #include <glm/glm.hpp>
 
 // ---------------- world constants ----------------
-const float GRAVITY     = -25.0f;
-
-// ---------------- player constants ----------------
-// player radius is in src\physics\config.h
-const float JUMP_SPEED = 12.0f;
-const float MOVE_SPEED = 12.0f;
-
+// lives in config.h never hardcode values in a file again 
 // ---------------- helper functions start ----------------
 
 // “Gives me the direction the triangle is facing.""
@@ -92,13 +86,32 @@ void updatePhysics(
     const Camera& cam)
 {
 
+    // debug stuff so i get not stuck
+    // teleport up
+    if (glfwGetKey(win, GLFW_KEY_T) == GLFW_PRESS)
+    {
+        p.pos.y += 1.0f;
+        p.vel = glm::vec3(0.0f);
+    }
+
+    // teleport forward (where player is facing)
+    if (glfwGetKey(win, GLFW_KEY_G) == GLFW_PRESS)
+    {
+        glm::vec3 dir = cam.front;
+        dir.y = 0.0f; // stay horizontal
+        if (glm::length(dir) > 0.0001f)
+            dir = glm::normalize(dir);
+
+        p.pos += dir * 1.0f;
+        p.vel = glm::vec3(0.0f);
+    }
+
     // player spheres
     // I KNOW its not a rectangle like roblox but just get it working first fix later
-    const glm::vec3 SPHERE_OFFSETS[3] = {
-        glm::vec3(0.0f, PLAYER_RADIUS, 0.0f),   // feet
-        glm::vec3(0.0f, 0.9f, 0.0f),             // body
-        glm::vec3(0.0f, 1.6f, 0.0f)              // head
-    };
+    glm::vec3 capsuleBottom = p.pos + glm::vec3(0, PLAYER_RADIUS, 0);
+    glm::vec3 capsuleTop    = p.pos + glm::vec3(0,
+        PLAYER_RADIUS + PLAYER_CAPSULE_HALF * 2.0f,
+        0);
 
     // ---- movement input ----
     glm::vec3 move(0);
@@ -121,18 +134,18 @@ void updatePhysics(
     if (glfwGetKey(win, GLFW_KEY_A)) move -= right;
     if (glfwGetKey(win, GLFW_KEY_D)) move += right;
 
-    p.pos += move * MOVE_SPEED * dt;
+    p.pos += move * PHYS.moveSpeed * dt;
 
     // ---- jump ----
     if (glfwGetKey(win, GLFW_KEY_SPACE) && p.onGround)
     {
-        p.vel.y = JUMP_SPEED;
+        p.vel.y = PHYS.jumpStrength;
         p.onGround = false;
     }
 
     // ---- gravity ----
 
-    p.vel.y += GRAVITY * dt;
+    p.vel.y += PHYS.gravity * dt;
     p.pos.y += p.vel.y * dt;
 
     // ---- collisions ----
@@ -141,44 +154,42 @@ void updatePhysics(
     // do a few passes so we fully escape geometry
     for (int pass = 0; pass < 2; ++pass)
     {
-        // loop over player spheres
-        for (int s = 0; s < 3; ++s)
+        for (size_t i = 0; i + 2 < world.verts.size(); i += 3)
         {
-            glm::vec3 sphereCenter = p.pos + SPHERE_OFFSETS[s];
+            glm::vec3 a = world.verts[i + 0].pos;
+            glm::vec3 b = world.verts[i + 1].pos;
+            glm::vec3 c = world.verts[i + 2].pos;
 
-            // loop over map triangles
-            for (size_t i = 0; i + 2 < world.verts.size(); i += 3)
+            // closest point on triangle
+            glm::vec3 closest =
+                closestPointOnTriangle(capsuleBottom, a, b, c);
+
+            // project closest point onto capsule segment
+            glm::vec3 ab = capsuleTop - capsuleBottom;
+            float t = glm::dot(closest - capsuleBottom, ab) / glm::dot(ab, ab);
+            t = glm::clamp(t, 0.0f, 1.0f);
+
+            glm::vec3 capsulePoint = capsuleBottom + ab * t;
+
+            glm::vec3 delta = capsulePoint - closest;
+            float dist = glm::length(delta);
+
+            if (dist < PLAYER_RADIUS && dist > 0.0001f)
             {
-                glm::vec3 a = world.verts[i + 0].pos;
-                glm::vec3 b = world.verts[i + 1].pos;
-                glm::vec3 c = world.verts[i + 2].pos;
+                glm::vec3 normal = delta / dist;
+                float push = PLAYER_RADIUS - dist;
 
-                glm::vec3 closest =
-                    closestPointOnTriangle(sphereCenter, a, b, c);
+                p.pos += normal * push;
 
-                glm::vec3 delta = sphereCenter - closest;
-                float dist = glm::length(delta);
-
-                if (dist < PLAYER_RADIUS && dist > 0.0001f)
+                if (normal.y > 0.5f)
                 {
-                    glm::vec3 normal = delta / dist;
-                    float push = PLAYER_RADIUS - dist;
-
-                    // ALWAYS push out of geometry
-                    p.pos += normal * push;
-
-                    // ONLY feet sphere can create "ground"
-                    if (s == 0 && normal.y > 0.5f)
-                    {
-                        p.onGround = true;
-                        if (p.vel.y < 0.0f)
-                            p.vel.y = 0.0f;
-                    }
-                    else
-                    {
-                        // slide along walls / ceilings
-                        p.vel -= normal * glm::dot(p.vel, normal);
-                    }
+                    p.onGround = true;
+                    if (p.vel.y < 0.0f)
+                        p.vel.y = 0.0f;
+                }
+                else
+                {
+                    p.vel -= normal * glm::dot(p.vel, normal);
                 }
             }
         }
