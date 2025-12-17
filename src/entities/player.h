@@ -71,6 +71,12 @@ public:
     // REQUIRED NEW FUNCTION
     OBB getOBB() const;
 
+    // ---- DEBUG COLLISION SPHERES (visual only) ----
+    // dec 16 2025 im conuffsed and making bunches of edits and it mightbreak later but ok wahtrever 
+    glm::vec3 debugFeetSphere {0};
+    glm::vec3 debugMidSphere  {0};
+    glm::vec3 debugHeadSphere {0};
+
     // Methods
     Player();
     void reset();

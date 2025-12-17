@@ -1,0 +1,9 @@
+{
+    "file location": "C:/important/quiet/n/mimita-public/mimita-public/config/physics.json",
+    "gravity": -25.0,
+    "moveSpeed": 20.0,
+    "jumpStrength": 12.0,
+
+    "playerHeight": 1.8,
+    "playerRadius": 0.35
+}

@@ -75,6 +75,42 @@ glm::vec3 closestPointOnTriangle(
     return a + ab * v + ac * w;
 }
 
+static void collideSphere(
+    Player& p,
+    const glm::vec3& center,
+    float radius,
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c
+) {
+    glm::vec3 closest = closestPointOnTriangle(center, a, b, c);
+    glm::vec3 delta = center - closest;
+    float dist = glm::length(delta);
+
+    if (dist < radius && dist > 0.0001f)
+    {
+        glm::vec3 normal = delta / dist;
+        // push me out just a little more than the minimum
+        float push = (radius - dist) + 0.01f;
+
+        // 1. ALWAYS push out of geometry (shortest way)
+        p.pos += normal * push;
+
+        // 2. Remove velocity INTO the surface (keep sliding)
+        float into = glm::dot(p.vel, normal);
+        if (into < 0.0f)
+            p.vel -= normal * into;
+
+        // 3. If surface is mostly below us, we're grounded
+        if (normal.y > 0.5f)
+        {
+            p.onGround = true;
+            if (p.vel.y < 0.0f)
+                p.vel.y = 0.0f;
+        }
+    }
+}
+
 // ---------------- helper functions end ----------------
 
 // ---------------- main update ----------------
@@ -105,13 +141,6 @@ void updatePhysics(
         p.pos += dir * 1.0f;
         p.vel = glm::vec3(0.0f);
     }
-
-    // player spheres
-    // I KNOW its not a rectangle like roblox but just get it working first fix later
-    glm::vec3 capsuleBottom = p.pos + glm::vec3(0, PLAYER_RADIUS, 0);
-    glm::vec3 capsuleTop    = p.pos + glm::vec3(0,
-        PLAYER_RADIUS + PLAYER_CAPSULE_HALF * 2.0f,
-        0);
 
     // ---- movement input ----
     glm::vec3 move(0);
@@ -151,47 +180,23 @@ void updatePhysics(
     // ---- collisions ----
     p.onGround = false;
 
-    // do a few passes so we fully escape geometry
     for (int pass = 0; pass < 2; ++pass)
     {
+        // do we do this twice i dont know 
+        glm::vec3 feetSphereCenter = p.pos + glm::vec3(0.0f, PLAYER_RADIUS, 0.0f);
+        glm::vec3 midSphereCenter    = p.pos + glm::vec3(0.0f, PLAYER_HEIGHT * 0.5f, 0.0f);
+        // matbe dont subtract the radius? hmm 
+        glm::vec3 headSphereCenter    = p.pos + glm::vec3(0.0f, PLAYER_HEIGHT, 0.0f);
+
         for (size_t i = 0; i + 2 < world.verts.size(); i += 3)
         {
             glm::vec3 a = world.verts[i + 0].pos;
             glm::vec3 b = world.verts[i + 1].pos;
             glm::vec3 c = world.verts[i + 2].pos;
 
-            // closest point on triangle
-            glm::vec3 closest =
-                closestPointOnTriangle(capsuleBottom, a, b, c);
-
-            // project closest point onto capsule segment
-            glm::vec3 ab = capsuleTop - capsuleBottom;
-            float t = glm::dot(closest - capsuleBottom, ab) / glm::dot(ab, ab);
-            t = glm::clamp(t, 0.0f, 1.0f);
-
-            glm::vec3 capsulePoint = capsuleBottom + ab * t;
-
-            glm::vec3 delta = capsulePoint - closest;
-            float dist = glm::length(delta);
-
-            if (dist < PLAYER_RADIUS && dist > 0.0001f)
-            {
-                glm::vec3 normal = delta / dist;
-                float push = PLAYER_RADIUS - dist;
-
-                p.pos += normal * push;
-
-                if (normal.y > 0.5f)
-                {
-                    p.onGround = true;
-                    if (p.vel.y < 0.0f)
-                        p.vel.y = 0.0f;
-                }
-                else
-                {
-                    p.vel -= normal * glm::dot(p.vel, normal);
-                }
-            }
+            collideSphere(p, feetSphereCenter, PLAYER_RADIUS, a, b, c);
+            collideSphere(p, midSphereCenter,  PLAYER_RADIUS, a, b, c);
+            collideSphere(p, headSphereCenter, PLAYER_RADIUS, a, b, c);
         }
     }
 }
