@@ -18,12 +18,24 @@ inline PhysicsConfig PHYS = {
 };
 
 // Player dimensions (RAW FLOATS ONLY)
-inline float PLAYER_WIDTH  = 0.5f;   // meters
-inline float PLAYER_HEIGHT = 1.8f;   // meters
-inline float PLAYER_DEPTH  = 0.2f;  // meters
+// i know, 1.8f = 1.8m is nice and pretty but i dont htink cpp is doing that so the
+// numbers are bigger 
+
+// defaults are
+/*
+0.5f for width
+1.8f for height
+0.2f for depth
+0.35f for radius
+*/
+
+inline float PHYS_MULT = 2.0f;  
+inline float PLAYER_WIDTH  = 0.5f * PHYS_MULT;  
+inline float PLAYER_HEIGHT = 1.8f * PHYS_MULT;   
+inline float PLAYER_DEPTH  = 0.2f * PHYS_MULT;  
+inline float PLAYER_RADIUS = 0.35f * PHYS_MULT;
 
 // do we use this idk
 // i put it jsut so errors stop 
-inline float PLAYER_RADIUS = 0.35f;
 
 inline float MAX_SLOPE_ANGLE = 0.5f;

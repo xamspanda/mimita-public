@@ -34,8 +34,13 @@ static Capsule playerCapsule(const Player& p)
 {
     Capsule c;
     c.r = PLAYER_RADIUS;
+
+    // bottom sphere center (feet)
     c.a = p.pos + glm::vec3(0.0f, c.r, 0.0f);
-    c.b = p.pos + glm::vec3(0.0f, (PLAYER_HEIGHT - c.r), 0.0f);
+
+    // top sphere center (head)
+    c.b = p.pos + glm::vec3(0.0f, PLAYER_HEIGHT - c.r, 0.0f);
+
     return c;
 }
 
@@ -155,6 +160,9 @@ void updatePhysics(
     const Camera& cam)
 {
 
+    // remember old pos so we prevent going in blocks, not just snap out
+    glm::vec3 oldPos = p.pos;
+
     // ---- debug teleports ----
     if (glfwGetKey(win, GLFW_KEY_T) == GLFW_PRESS)
     {
@@ -172,6 +180,9 @@ void updatePhysics(
         p.pos += dir * 1.0f;
         p.vel = glm::vec3(0.0f);
     }
+
+    // idk if we do this 
+    dt = glm::min(dt, 0.033f); // never simulate more than ~30fps worth
 
     // movement input
     glm::vec3 wish(0.0f);
