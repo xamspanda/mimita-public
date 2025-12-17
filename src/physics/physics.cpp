@@ -105,6 +105,7 @@ static glm::vec3 closestPointOnSegment(
 static void collideCapsuleTriangle(
     Player& p,
     Capsule& cap,
+    const glm::vec3& oldPos,
     const glm::vec3& a,
     const glm::vec3& b,
     const glm::vec3& c)
@@ -125,8 +126,18 @@ static void collideCapsuleTriangle(
     float dist = glm::length(delta);
 
     // INSIDE = HARD SNAP OUT
-    if (dist < cap.r && dist > 0.00001f)
+    if (dist < cap.r && dist > ALMOST_ZERO)
     {
+        float penetration = cap.r - dist;
+
+        // TOO DEEP = illegal move → revert
+        if (penetration > cap.r * HOW_DEEP)
+        {
+            p.pos = oldPos;
+            p.vel = glm::vec3(0.0f);
+            return;
+        }
+
         glm::vec3 normal = delta / dist;
 
         // move player out of triangle with bias
@@ -160,8 +171,6 @@ void updatePhysics(
     const Camera& cam)
 {
 
-    // remember old pos so we prevent going in blocks, not just snap out
-    glm::vec3 oldPos = p.pos;
 
     // ---- debug teleports ----
     if (glfwGetKey(win, GLFW_KEY_T) == GLFW_PRESS)
@@ -180,6 +189,10 @@ void updatePhysics(
         p.pos += dir * 1.0f;
         p.vel = glm::vec3(0.0f);
     }
+
+    // PUT THIS ABOVE ALL MOVEMENT... EXCEPT DEBUG
+    // remember old pos so we prevent going in blocks, not just snap out
+    glm::vec3 oldPos = p.pos;
 
     // idk if we do this 
     dt = glm::min(dt, 0.033f); // never simulate more than ~30fps worth
@@ -223,6 +236,7 @@ void updatePhysics(
         collideCapsuleTriangle(
             p,
             cap,
+            oldPos,
             world.verts[i+0].pos,
             world.verts[i+1].pos,
             world.verts[i+2].pos

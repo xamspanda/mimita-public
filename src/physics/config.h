@@ -35,7 +35,15 @@ inline float PLAYER_HEIGHT = 1.8f * PHYS_MULT;
 inline float PLAYER_DEPTH  = 0.2f * PHYS_MULT;  
 inline float PLAYER_RADIUS = 0.35f * PHYS_MULT;
 
-// do we use this idk
-// i put it jsut so errors stop 
-
 inline float MAX_SLOPE_ANGLE = 0.5f;
+
+// how deep
+// e.g. 0.5f = im alll up in there
+// 0.01f = if im a LIL in there stop. 
+
+inline float HOW_DEEP = 0.01f;
+
+// almost 0 
+// because we're werid
+inline float ALMOST_ZERO = 0.00001f
+
