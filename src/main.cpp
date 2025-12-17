@@ -276,7 +276,7 @@ int main() {
         for (auto& p : projectiles) p.draw(renderer, view, proj);
 
         // hot reload
-        hotReloadPhysicsConfig();
+        // hotReloadPhysicsConfig();
 
         renderer.endFrame();
     }
