@@ -20,16 +20,95 @@
 
 // ---------------- world constants ----------------
 // lives in config.h never hardcode values in a file again 
-
 // ---------------- helper functions start ----------------
 
-glm::vec3 playerHalfExtents()
+// “Gives me the direction the triangle is facing.""
+glm::vec3 triangleNormal(
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c)
 {
-    return glm::vec3(
-        PLAYER_WIDTH * 0.5f,
-        PLAYER_HEIGHT * 0.5f,
-        PLAYER_DEPTH * 0.5f
-    );
+    return glm::normalize(glm::cross(b - a, c - a));
+}
+
+// “Given a point and a triangle, tell me the closest spot on the triangle.”
+glm::vec3 closestPointOnTriangle(
+    const glm::vec3& p,
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c)
+{
+    // edges
+    glm::vec3 ab = b - a;
+    glm::vec3 ac = c - a;
+    glm::vec3 ap = p - a;
+
+    float d1 = glm::dot(ab, ap);
+    float d2 = glm::dot(ac, ap);
+    if (d1 <= 0.0f && d2 <= 0.0f) return a;
+
+    glm::vec3 bp = p - b;
+    float d3 = glm::dot(ab, bp);
+    float d4 = glm::dot(ac, bp);
+    if (d3 >= 0.0f && d4 <= d3) return b;
+
+    float vc = d1 * d4 - d3 * d2;
+    if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f)
+        return a + ab * (d1 / (d1 - d3));
+
+    glm::vec3 cp = p - c;
+    float d5 = glm::dot(ab, cp);
+    float d6 = glm::dot(ac, cp);
+    if (d6 >= 0.0f && d5 <= d6) return c;
+
+    float vb = d5 * d2 - d1 * d6;
+    if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f)
+        return a + ac * (d2 / (d2 - d6));
+
+    float va = d3 * d6 - d5 * d4;
+    if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f)
+        return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));
+
+    float denom = 1.0f / (va + vb + vc);
+    float v = vb * denom;
+    float w = vc * denom;
+    return a + ab * v + ac * w;
+}
+
+static void collideSphere(
+    Player& p,
+    const glm::vec3& center,
+    float radius,
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c
+) {
+    glm::vec3 closest = closestPointOnTriangle(center, a, b, c);
+    glm::vec3 delta = center - closest;
+    float dist = glm::length(delta);
+
+    if (dist < radius && dist > 0.0001f)
+    {
+        glm::vec3 normal = delta / dist;
+        // push me out just a little more than the minimum
+        float push = (radius - dist) + 0.01f;
+
+        // 1. ALWAYS push out of geometry (shortest way)
+        p.pos += normal * push;
+
+        // 2. Remove velocity INTO the surface (keep sliding)
+        float into = glm::dot(p.vel, normal);
+        if (into < 0.0f)
+            p.vel -= normal * into;
+
+        // 3. If surface is mostly below us, we're grounded
+        if (normal.y > 0.5f)
+        {
+            p.onGround = true;
+            if (p.vel.y < 0.0f)
+                p.vel.y = 0.0f;
+        }
+    }
 }
 
 static bool aabbOverlapsTriangle(
@@ -104,66 +183,66 @@ void updatePhysics(
     }
 
     // ---- movement input ----
-    glm::vec3 wish(0.0f);
+    glm::vec3 move(0);
 
+    // camera forward, flattened (no flying)
     glm::vec3 forward = cam.front;
-    forward.y = 0.0f;
+    forward.y = 0;
+
+    // if we're not looking straight down/up, make it usable
     if (glm::length(forward) > 0.0001f)
+    {
         forward = glm::normalize(forward);
-
-    glm::vec3 right = glm::cross(forward, glm::vec3(0,1,0));
-
-    if (glfwGetKey(win, GLFW_KEY_W)) wish += forward;
-    if (glfwGetKey(win, GLFW_KEY_S)) wish -= forward;
-    if (glfwGetKey(win, GLFW_KEY_A)) wish -= right;
-    if (glfwGetKey(win, GLFW_KEY_D)) wish += right;
-
-    if (glm::length(wish) > 0.0001f)
-        wish = glm::normalize(wish);
-
-    glm::vec3 delta = wish * PHYS.moveSpeed * dt;
-
-    // ---- CS-style sliding ----
-
-    // X axis
-    p.pos.x += delta.x;
-    if (playerBoxHitsWorld(p, world))
-        p.pos.x -= delta.x;
-
-    // Z axis
-    p.pos.z += delta.z;
-    if (playerBoxHitsWorld(p, world))
-        p.pos.z -= delta.z;
-
-    // ---- gravity ----
-    p.vel.y += PHYS.gravity * dt;
-    float dy = p.vel.y * dt;
-
-    p.pos.y += dy;
-    if (playerBoxHitsWorld(p, world))
-    {
-        p.pos.y -= dy;
-
-        if (p.vel.y < 0.0f)
-            p.onGround = true;
-
-        p.vel.y = 0.0f;
     }
-    else
+
+    // camera right
+    glm::vec3 right = glm::cross(forward, glm::vec3(0, 1, 0));
+
+    if (glfwGetKey(win, GLFW_KEY_W)) move += forward;
+    if (glfwGetKey(win, GLFW_KEY_S)) move -= forward;
+    if (glfwGetKey(win, GLFW_KEY_A)) move -= right;
+    if (glfwGetKey(win, GLFW_KEY_D)) move += right;
+
+    // duped code 
+    glm::vec3 totalMove = move * PHYS.moveSpeed * dt;
+
+    // how many small steps we take
+    int steps = 6; // 4–8 is fine
+
+    for (int s = 0; s < steps; s++)
     {
+        // move a little
+        p.pos += totalMove / (float)steps;
+
+        // immediately collide
         p.onGround = false;
+
+        for (size_t i = 0; i + 2 < world.verts.size(); i += 3)
+        {
+            glm::vec3 a = world.verts[i + 0].pos;
+            glm::vec3 b = world.verts[i + 1].pos;
+            glm::vec3 c = world.verts[i + 2].pos;
+
+            collideSphere(p, p.pos + glm::vec3(0.0f, PLAYER_RADIUS, 0.0f), PLAYER_RADIUS, a,b,c);
+            collideSphere(p, p.pos + glm::vec3(0.0f, PLAYER_HEIGHT * 0.5f, 0.0f), PLAYER_RADIUS, a,b,c);
+            collideSphere(p, p.pos + glm::vec3(0.0f, PLAYER_HEIGHT, 0.0f), PLAYER_RADIUS, a,b,c);
+        }
     }
 
-    // jump i think 
+    // ---- jump ----
     if (glfwGetKey(win, GLFW_KEY_SPACE) && p.onGround)
     {
         p.vel.y = PHYS.jumpStrength;
         p.onGround = false;
     }
 
+    // ---- gravity ----
+
+    p.vel.y += PHYS.gravity * dt;
+    p.pos.y += p.vel.y * dt;
 
     // ---- collisions ----
-    // p.onGround = false;
+    p.onGround = false;
 
     // for (int pass = 0; pass < 2; ++pass)
     // {

@@ -215,9 +215,9 @@ int main() {
         //     0.0f
         // );
 
-        renderer.drawDebugSphere(player.debugFeetSphere, PLAYER_RADIUS, {1,0,0}, view, proj);
-        renderer.drawDebugSphere(player.debugMidSphere,  PLAYER_RADIUS, {0,1,0}, view, proj);
-        renderer.drawDebugSphere(player.debugHeadSphere, PLAYER_RADIUS, {0,0,1}, view, proj);
+        // renderer.drawDebugSphere(player.debugFeetSphere, PLAYER_RADIUS, {1,0,0}, view, proj);
+        // renderer.drawDebugSphere(player.debugMidSphere,  PLAYER_RADIUS, {0,1,0}, view, proj);
+        // renderer.drawDebugSphere(player.debugHeadSphere, PLAYER_RADIUS, {0,0,1}, view, proj);
 
         // player drawing logic in player.cpp
         player.render(shaderProgram, playerVAO, playerMesh.verts.size(), view, proj, camera, playerTex);
