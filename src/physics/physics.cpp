@@ -34,7 +34,7 @@ static Capsule playerCapsule(const Player& p)
     Capsule c;
     c.r = PLAYER_RADIUS;
     c.a = p.pos + glm::vec3(0.0f, c.r, 0.0f);
-    c.b = p.pos + glm::vec3(0.0f, (PLAYER_HEIGHT - c.r) * 2, 0.0f);
+    c.b = p.pos + glm::vec3(0.0f, (PLAYER_HEIGHT - c.r), 0.0f);
     return c;
 }
 
@@ -101,7 +101,8 @@ static void collideCapsuleTriangle(
     Capsule& cap,
     const glm::vec3& a,
     const glm::vec3& b,
-    const glm::vec3& c)
+    const glm::vec3& c,
+    float& pushBudget)
 {
     // closest point on triangle to capsule line
     glm::vec3 triPoint = closestPointOnTriangle(
@@ -125,8 +126,11 @@ static void collideCapsuleTriangle(
 
         float push = howmuchinside + bias;
 
-        // push player out
+        if (push > pushBudget) push = pushBudget;
+        if (push <= 0.0f) return;
+
         p.pos += normal * push;
+        pushBudget -= push;
 
         // ground detection
         if (normal.y > 0.5f)
@@ -149,6 +153,8 @@ void updatePhysics(
     float dt,
     const Camera& cam)
 {
+
+    float pushBudget = 0.10f; // max meters we can be moved by collisions this frame
 
     // ---- debug teleports ----
     if (glfwGetKey(win, GLFW_KEY_T) == GLFW_PRESS)
@@ -206,7 +212,8 @@ void updatePhysics(
             cap,
             world.verts[i+0].pos,
             world.verts[i+1].pos,
-            world.verts[i+2].pos
+            world.verts[i+2].pos,
+            pushBudget
         );
     }
 
