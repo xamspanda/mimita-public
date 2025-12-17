@@ -22,7 +22,22 @@ if(NOT glfw3_FOUND)
     # Fallback to pkg-config
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
-        pkg_check_modules(GLFW3 QUIET glfw3)
+        pkg_check_modules(GLFW3 glfw3)
+        if(GLFW3_FOUND)
+            message(STATUS "Found GLFW3 via pkg-config")
+        endif()
+    endif()
+endif()
+
+# If still not found, try find_library as last resort
+if(NOT glfw3_FOUND AND NOT GLFW3_FOUND)
+    find_library(GLFW3_LIBRARY glfw PATHS /opt/homebrew/lib /usr/local/lib)
+    find_path(GLFW3_INCLUDE_DIR GLFW/glfw3.h PATHS /opt/homebrew/include /usr/local/include)
+    if(GLFW3_LIBRARY AND GLFW3_INCLUDE_DIR)
+        set(GLFW3_FOUND TRUE)
+        set(GLFW3_LIBRARIES ${GLFW3_LIBRARY})
+        set(GLFW3_INCLUDE_DIRS ${GLFW3_INCLUDE_DIR})
+        message(STATUS "Found GLFW3 via find_library: ${GLFW3_LIBRARY}")
     endif()
 endif()
 
@@ -41,7 +56,8 @@ set(INCLUDE_DIRS
 )
 
 if(glfw3_FOUND)
-    list(APPEND INCLUDE_DIRS ${glfw3_INCLUDE_DIRS})
+    # Modern CMake config uses imported targets, include dirs are handled automatically
+    message(STATUS "Found GLFW3 via CMake config")
 elseif(GLFW3_FOUND)
     list(APPEND INCLUDE_DIRS ${GLFW3_INCLUDE_DIRS})
 endif()
@@ -60,7 +76,8 @@ add_executable(${PROJECT_NAME} ${CPP_SOURCES} ${C_SOURCES})
 
 # Link libraries
 if(glfw3_FOUND)
-    target_link_libraries(${PROJECT_NAME} ${glfw3_LIBRARIES})
+    # Modern CMake config provides imported target 'glfw'
+    target_link_libraries(${PROJECT_NAME} glfw)
 elseif(GLFW3_FOUND)
     target_link_libraries(${PROJECT_NAME} ${GLFW3_LIBRARIES})
 endif()

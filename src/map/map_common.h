@@ -19,8 +19,3 @@ struct Mesh {
     std::vector<Face> faces;
     std::vector<Vertex> verts; // keep legacy for VAO creation
 };
-
-struct Chunk
-{
-    std::vector<Vertex> tris;
-};

@@ -18,7 +18,7 @@
             ],
             "compilerPath": "/usr/bin/clang++",
             "cStandard": "c17",
-            "cppStandard": "c++17",
+            "cppStandard": "c++23",
             "intelliSenseMode": "macos-clang-x64",
             "compileCommands": "${workspaceFolder}/compile_commands.json",
             "macFrameworkPath": [
@@ -57,7 +57,7 @@
             ],
             "compilerPath": "C:/important/winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r4/mingw64/bin/g++.exe",
             "cStandard": "c17",
-            "cppStandard": "c++17",
+            "cppStandard": "c++23",
             "intelliSenseMode": "windows-gcc-x64",
             "browse": {
                 "path": [
