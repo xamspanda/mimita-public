@@ -1,69 +1,56 @@
 // C:\important\go away v5\s\mimita-v5\src\physics\config.h
+// the physics.json file at 
+// C:\important\quiet\n\mimita-public\mimita-public\config\physics.json
+// this has hot reload values that i think are more accurate
 
 #pragma once
 
-// all tweakable constants live here
-
-/*
-------------------------------------------
-MIMITA SIZES V1 AS OF NOV 6 2025
-------------------------------------------
-
-roblox
-
-csgo
-
-tf2
-
-blender
-1 unit = 1 meter
-
-mimita
-1.0f = 1 meter
-
-------------------------------------------
-EXTRA TODO NOV 6 2025
-------------------------------------------
-
-make gravity like this
-so that its meters and kilometers etc
-// Example in Mimita
-float gravity = -9.81f;   // meters per second²
-float playerHeight = 1.8f; // 1.8 meters tall
-float playerSpeed = 5.0f;  // 5 m/s walking
-
-also todo nov 6 2025
-scaling from blender/other programs to mimita
-float blenderToMimitaScale = 1.0f; // default
-// if it looks too big,
-// try 0.01f (common for FBX),
-// but for glTF keep 1.0
-
-glm::vec3 scaledPos = (
-originalPos * blenderToMimitaScale
-);
-
-*/
-
-/*
-todo nov 6 2025 942pm
-still tweaking
-idk
-need fix later
-*/
-
-/**
- * todo dec 12 2025 is this even what actual
- * ly does anthing? we go wa faster than 20 i think  idk
- */
-
 struct PhysicsConfig {
-    float gravity = -25.0f;
-    float moveSpeed = 20.0f;
-    float jumpStrength = 10.0f;
-    float deathHeight = -50.0f;
-    float respawnDelay = 1.0f;
+    float gravity;
+    float moveSpeed;
+    float jumpStrength;
 };
 
-// global config instance
-inline PhysicsConfig PHYS;
+inline PhysicsConfig PHYS = {
+    -25.0f,
+    20.0f,
+    12.0f
+};
+
+// Player dimensions (RAW FLOATS ONLY)
+// i know, 1.8f = 1.8m is nice and pretty but i dont htink cpp is doing that so the
+// numbers are bigger 
+
+// defaults are
+/*
+0.5f for width
+1.8f for height
+0.2f for depth
+0.35f for radius
+*/
+
+inline float PHYS_MULT = 2.0f;  
+inline float PLAYER_WIDTH  = 0.5f * PHYS_MULT;  
+inline float PLAYER_HEIGHT = 1.8f * PHYS_MULT;   
+inline float PLAYER_DEPTH  = 0.2f * PHYS_MULT;  
+inline float PLAYER_RADIUS = 0.35f * PHYS_MULT;
+
+inline float MAX_SLOPE_ANGLE = 0.5f;
+
+// how deep
+// e.g. 0.5f = im alll up in there
+// 0.01f = if im a LIL in there stop. 
+
+inline float HOW_DEEP = 0.5f;
+
+// almost 0 
+// because we're werid
+inline float ALMOST_ZERO = 0.00001f;
+
+// everi map is now in chunks of this size 
+// if ur in 1, calc onli that ones colisions
+// if ur in 2, calc both
+// if ur in 3+, calc those 
+// just dont calc the entire freakin map
+// which allows multi pass which allows working freakin collisions finalli
+inline float CHUNK_SIZE = 5.0f; 

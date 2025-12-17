@@ -30,6 +30,11 @@
 
 extern Renderer* gRenderer;
 
+// dec 16 2025 use config everwhere 
+#include "physics/config.h"
+#include "physics/config-loader.h"
+#include "debug/debug-status.h"
+
 TextureManager TEX; // global instance
 GLuint groundTex;
 
@@ -100,7 +105,10 @@ int main() {
     // Mesh map = loadOBJ("assets/maps/mimita-big-map-v2.obj");
 
     // sizing test dec 4 2025 test
-    Mesh map = loadOBJ("assets/maps/mimita-sizing-v1.obj");
+    // Mesh map = loadOBJ("assets/maps/mimita-sizing-v1.obj");
+
+    // sizing test better dec 16 2025
+    Mesh map = loadOBJ("assets/maps/mimita-sizing-better-v2.obj");
 
     // do this so that the map actually has data for us to walk on 
     // ---- BAKE MAP TRANSFORM FOR PHYSICS ----
@@ -161,11 +169,53 @@ int main() {
         // do u put this here nov 6 2025 todo
         updatePhysics(player, map, renderer.window, dt, camera);
 
+        // DEBUG: draw collision spheres
+        // const glm::vec3 SPHERE_OFFSETS[3] = {
+        //     glm::vec3(0.0f, PLAYER_RADIUS, 0.0f),
+        //     glm::vec3(0.0f, 0.9f, 0.0f),
+        //     glm::vec3(0.0f, 1.6f, 0.0f)
+        // };
+
+        // for (int s = 0; s < 3; ++s)
+        // {
+        //     glm::vec3 center = player.pos + SPHERE_OFFSETS[s];
+        //     renderer.drawDebugSphere(
+        //         center,
+        //         PLAYER_RADIUS,
+        //         glm::vec3(1.0f, 0.0f, 0.0f),
+        //         view,
+        //         proj);
+        // }
+
+        // draw m hitbox for n ow dec 16 2025  nvm dont 
+        // Main should never calculate collision shapes.
+        // glm::vec3 feetSphereCenter = player.pos + glm::vec3(0.0f, PLAYER_RADIUS, 0.0f);
+        // glm::vec3 headSphereCenter = player.pos + glm::vec3(
+        //     0.0f,
+        //     PLAYER_HEIGHT - PLAYER_RADIUS,
+        //     0.0f
+        // );
+
+        // renderer.drawDebugSphere(player.debugFeetSphere, PLAYER_RADIUS, {1,0,0}, view, proj);
+        // renderer.drawDebugSphere(player.debugMidSphere,  PLAYER_RADIUS, {0,1,0}, view, proj);
+        // renderer.drawDebugSphere(player.debugHeadSphere, PLAYER_RADIUS, {0,0,1}, view, proj);
+
         // player drawing logic in player.cpp
         player.render(shaderProgram, playerVAO, playerMesh.verts.size(), view, proj, camera, playerTex);
 
         char hud[128];
         snprintf(hud, sizeof(hud), "Speed: --- km/h   Mode: PLAY");
+        if (gDebugStatusTimer > 0.0f)
+        {
+            drawText2D(
+                gDebugStatusText.c_str(),
+                10,
+                550,
+                1.0f
+            );
+
+            gDebugStatusTimer -= dt;
+        }
         // use mingliu font eventually
         drawText2D(hud, 10, 580, 1.0f);
 
@@ -209,6 +259,9 @@ int main() {
         // renderer.drawCube(player.pos, view, proj);
         enemy.draw(renderer, view, proj);
         for (auto& p : projectiles) p.draw(renderer, view, proj);
+
+        // hot reload
+        // hotReloadPhysicsConfig();
 
         renderer.endFrame();
     }
