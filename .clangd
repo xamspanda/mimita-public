@@ -1,7 +1,5 @@
 CompileFlags:
-  CompilationDatabase: .
-  Add:
-    - -std=c++23
+  CompilationDatabase: build
 
 Diagnostics:
   UnusedIncludes: None
